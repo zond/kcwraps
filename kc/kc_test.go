@@ -48,4 +48,9 @@ func TestCollection(t *testing.T) {
 	if string(coll[2].Key) != "d" || string(coll[2].Value) != "e" {
 		t.Errorf("Wrong value")
 	}
+	d.SubClear([]byte("x"))
+	coll = d.GetCollection([]byte("x"))
+	if len(coll) != 0 {
+		t.Errorf("Wanted 3 elements")
+	}
 }

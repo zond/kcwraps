@@ -65,6 +65,13 @@ func (self *DB) SubRemove(key1, key2 []byte) error {
 }
 
 /*
+SubCas compares and swaps the value under key1/key2.
+*/
+func (self *DB) SubCas(key1, key2, old, neu []byte) error {
+	return self.KCDB.Cas(keyCombine(key1, key2), old, neu)
+}
+
+/*
 SubIncrDouble increments the float64 under key1/key2.
 */
 func (self *DB) SubIncrDouble(key1, key2 []byte, delta float64) error {
@@ -79,9 +86,28 @@ func (self *DB) SubIncrInt(key1, key2 []byte, delta int64) (int64, error) {
 }
 
 /*
+SubClear removes all values under key1.
+*/
+func (self *DB) SubClear(key1 []byte) {
+	self.each(key1, func(k1, k2, v []byte) {
+		self.SubRemove(k1, k2)
+	})
+}
+
+/*
 GetCollections returns the sorted key/value pairs under key1.
 */
 func (self *DB) GetCollection(key1 []byte) (result []KV) {
+	self.each(key1, func(k1, k2, v []byte) {
+		result = append(result, KV{
+			Key:   k2,
+			Value: v,
+		})
+	})
+	return
+}
+
+func (self *DB) each(key1 []byte, f func(key1, key2, value []byte)) {
 	cursor := self.KCDB.Cursor()
 	var err error
 	if err = cursor.JumpKey(key1); err != nil {
@@ -95,13 +121,9 @@ func (self *DB) GetCollection(key1 []byte) (result []KV) {
 		if len(key) <= len(key1) || key[len(key1)] != 0 || bytes.Compare(key[:len(key1)], key1) != 0 {
 			break
 		}
-		result = append(result, KV{
-			Key:   key[len(key1)+1:],
-			Value: value,
-		})
+		f(key1, key[len(key1)+1:], value)
 	}
 	if err != nil {
 		panic(err)
 	}
-	return
 }
