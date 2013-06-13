@@ -24,10 +24,30 @@ func New(path string) (result *DB, err error) {
 	return
 }
 
+func (self *DB) SubSetInt(key1, key2 string, value int) error {
+	return self.DB.SetInt(keyCombine(key1, key2), value)
+}
+
+func (self *DB) SubGetInt(key1, key2 string) (int, error) {
+	return self.DB.GetInt(keyCombine(key1, key2))
+}
+
+func (self *DB) SubSetGob(key1, key2 string, value interface{}) error {
+	return self.DB.SetGob(keyCombine(key1, key2), value)
+}
+
+func (self *DB) SubGetGob(key1, key2 string, result interface{}) error {
+	return self.DB.GetGob(keyCombine(key1, key2), result)
+}
+
 func (self *DB) SubSet(key1, key2, value string) error {
 	return self.DB.Set(keyCombine(key1, key2), value)
 }
 
 func (self *DB) SubGet(key1, key2 string) (string, error) {
 	return self.DB.Get(keyCombine(key1, key2))
+}
+
+func (self *DB) SubRemove(key1, key2 string) error {
+	return self.DB.Remove(keyCombine(key1, key2))
 }
