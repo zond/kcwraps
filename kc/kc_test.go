@@ -24,6 +24,16 @@ func TestCrud(t *testing.T) {
 	}
 }
 
+func TestError(t *testing.T) {
+	d, err := New("empty")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := d.GetCollection([]byte("hehu")); err != nil {
+		t.Errorf("%#v", err)
+	}
+}
+
 func TestCollection(t *testing.T) {
 	d, err := New("test")
 	if err != nil {

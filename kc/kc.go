@@ -111,6 +111,9 @@ func (self *DB) each(key1 []byte, f func(key1, key2, value []byte)) {
 	cursor := self.KCDB.Cursor()
 	var err error
 	if err = cursor.JumpKey(key1); err != nil {
+		if err.Error() == "no record" {
+			return
+		}
 		panic(err)
 	}
 	for {
