@@ -119,6 +119,9 @@ func (self *DB) each(key1 []byte, f func(key1, key2, value []byte)) {
 	for {
 		key, value, err := cursor.Get(true)
 		if err != nil {
+			if err.Error() == "no record" {
+				return
+			}
 			panic(err)
 		}
 		if len(key) <= len(key1) || key[len(key1)] != 0 || bytes.Compare(key[:len(key1)], key1) != 0 {
@@ -127,6 +130,9 @@ func (self *DB) each(key1 []byte, f func(key1, key2, value []byte)) {
 		f(key1, key[len(key1)+1:], value)
 	}
 	if err != nil {
+		if err.Error() == "no record" {
+			return
+		}
 		panic(err)
 	}
 }
