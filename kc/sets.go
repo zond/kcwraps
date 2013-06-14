@@ -14,9 +14,13 @@ func keyJoin(key1, key2 []byte) (result []byte) {
 }
 
 func keySplit(key []byte) (key1, key2 []byte, err error) {
-	for index, b := range key {
-		if b == 0 && key[index+1] != 0 {
-			return unescape(key[:index]), key[index+1:], nil
+	for index := 0; index < len(key); index++ {
+		if key[index] == 0 {
+			if index == len(key)-1 || key[index+1] != 0 {
+				return unescape(key[:index]), key[index+1:], nil
+			} else {
+				index++
+			}
 		}
 	}
 	return key, nil, fmt.Errorf("%v is not a key pair, found no single 0", key)
