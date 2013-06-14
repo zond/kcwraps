@@ -7,17 +7,18 @@ import (
 
 func keyJoin(key1, key2 []byte) (result []byte) {
 	escapedKey1 := escape(key1)
-	result = make([]byte, len(escapedKey1)+len(key2)+1)
+	result = make([]byte, len(escapedKey1)+len(key2)+2)
 	copy(result, escapedKey1)
-	copy(result[len(escapedKey1)+1:], key2)
+	copy(result[len(escapedKey1)+2:], key2)
+	result[len(escapedKey1)+1] = 1
 	return
 }
 
 func keySplit(key []byte) (key1, key2 []byte, err error) {
 	for index := 0; index < len(key); index++ {
 		if key[index] == 0 {
-			if index == len(key)-1 || key[index+1] != 0 {
-				return unescape(key[:index]), key[index+1:], nil
+			if index < len(key) && key[index+1] == 1 {
+				return unescape(key[:index]), key[index+2:], nil
 			} else {
 				index++
 			}

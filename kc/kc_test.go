@@ -125,3 +125,33 @@ func TestCollection2(t *testing.T) {
 		t.Errorf("Wanted 3 elements")
 	}
 }
+
+func TestCollection3(t *testing.T) {
+	d, err := New("test")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer d.Close()
+	d.Clear()
+	d.SubSet([]byte("x"), []byte{0, 0}, []byte("c"))
+	d.SubSet([]byte("x"), []byte{0, 1}, []byte("d"))
+	d.SubSet([]byte("x"), []byte{0, 2}, []byte("e"))
+	coll := d.GetCollection([]byte("x"))
+	if len(coll) != 3 {
+		t.Fatalf("Wanted 3 elements, got %v", coll)
+	}
+	if bytes.Compare(coll[0].Key, []byte{0, 0}) != 0 || string(coll[0].Value) != "c" {
+		t.Errorf("Wrong value")
+	}
+	if bytes.Compare(coll[1].Key, []byte{0, 1}) != 0 || string(coll[1].Value) != "d" {
+		t.Errorf("Wrong value")
+	}
+	if bytes.Compare(coll[2].Key, []byte{0, 2}) != 0 || string(coll[2].Value) != "e" {
+		t.Errorf("Wrong value")
+	}
+	d.SubClear([]byte("x"))
+	coll = d.GetCollection([]byte("x"))
+	if len(coll) != 0 {
+		t.Errorf("Wanted 3 elements")
+	}
+}
