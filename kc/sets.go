@@ -17,7 +17,7 @@ func keyJoin(key1, key2 []byte) (result []byte) {
 func keySplit(key []byte) (key1, key2 []byte, err error) {
 	for index := 0; index < len(key); index++ {
 		if key[index] == 0 {
-			if index < len(key) && key[index+1] == 1 {
+			if index < len(key)+1 && key[index+1] == 1 {
 				return unescape(key[:index]), key[index+2:], nil
 			} else {
 				index++
