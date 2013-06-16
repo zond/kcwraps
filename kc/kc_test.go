@@ -3,6 +3,7 @@ package kc
 import (
 	"bytes"
 	"math/rand"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -19,11 +20,40 @@ func randBytes() (result []byte) {
 	return
 }
 
-func TestEscape(t *testing.T) {
-	for i := 0; i < 100000; i++ {
-		b := randBytes()
-		if bytes.Compare(b, unescape(escape(b))) != 0 {
-			t.Fatalf("unescape(escape(%v)) => %v", unescape(escape(b)), b)
+func TestSplitJoin1(t *testing.T) {
+	keys := [][]byte{[]byte{0, 1}, []byte{1, 2}}
+	joined := join(keys)
+	wanted := []byte{0, 0, 1, 0, 1, 1, 2, 0, 1}
+	if bytes.Compare(joined, wanted) != 0 {
+		t.Fatalf("%v != %v", join(keys), wanted)
+	}
+	splitted := split(joined)
+	if len(splitted) != len(keys) {
+		t.Fatalf("%v != %v", splitted, keys)
+	}
+	for index, _ := range keys {
+		if bytes.Compare(keys[index], splitted[index]) != 0 {
+			t.Fatalf("%v != %v", keys[index], splitted[index])
+		}
+	}
+}
+
+func TestSplitJoin2(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		for j := 0; j < 10; j++ {
+			var keys [][]byte
+			for k := 0; k < j; k++ {
+				keys = append(keys, randBytes())
+			}
+			keys2 := split(join(keys))
+			if len(keys) != len(keys2) {
+				t.Fatalf("%v != %v", keys, keys2)
+			}
+			for index, _ := range keys2 {
+				if bytes.Compare(keys[index], keys2[index]) != 0 {
+					t.Fatalf("%v != %v", keys[index], keys2[index])
+				}
+			}
 		}
 	}
 }
@@ -35,16 +65,16 @@ func TestCrud(t *testing.T) {
 	}
 	defer d.Close()
 	d.Clear()
-	if err := d.SubSet([]byte("k1"), []byte("k2"), []byte("v")); err != nil {
+	if err := d.Set(Keyify("k1", "k2"), []byte("v")); err != nil {
 		t.Errorf(err.Error())
 	}
-	if v, err := d.SubGet([]byte("k1"), []byte("k2")); string(v) != "v" || err != nil {
+	if v, err := d.Get(Keyify("k1", "k2")); string(v) != "v" || err != nil {
 		t.Errorf("Wrong value!")
 	}
-	if err := d.SubRemove([]byte("k1"), []byte("k2")); err != nil {
+	if err := d.Remove(Keyify("k1", "k2")); err != nil {
 		t.Errorf(err.Error())
 	}
-	if v, err := d.SubGet([]byte("k1"), []byte("k2")); string(v) == "v" || err == nil {
+	if v, err := d.Get(Keyify("k1", "k2")); string(v) == "v" || err == nil {
 		t.Errorf("Not removed!")
 	}
 }
@@ -56,7 +86,7 @@ func TestError(t *testing.T) {
 	}
 	defer d.Close()
 	d.Clear()
-	if err := d.GetCollection([]byte("hehu")); err != nil {
+	if err := d.GetCollection(Keyify("hehu")); err != nil {
 		t.Errorf("%#v", err)
 	}
 }
@@ -68,28 +98,33 @@ func TestCollection1(t *testing.T) {
 	}
 	defer d.Close()
 	d.Clear()
-	d.SubSet([]byte("a"), []byte("b"), []byte("1"))
-	d.SubSet([]byte("x"), []byte("b"), []byte("c"))
-	d.SubSet([]byte("x"), []byte("c"), []byte("d"))
-	d.SubSet([]byte("x"), []byte("d"), []byte("e"))
-	d.SubSet([]byte("z"), []byte("b"), []byte("1"))
-	coll := d.GetCollection([]byte("x"))
-	if len(coll) != 3 {
-		t.Fatalf("Wanted 3 elements, got %v", coll)
+	d.Set(Keyify("a", "b"), []byte("1"))
+	d.Set(Keyify("x", "b"), []byte("c"))
+	d.Set(Keyify("x", "c"), []byte("d"))
+	d.Set(Keyify("x", "d"), []byte("e"))
+	d.Set(Keyify("z", "b"), []byte("1"))
+	coll := d.GetCollection(Keyify("x"))
+	wanted := []KV{
+		KV{
+			Keys:  Keyify("x", "b"),
+			Value: []byte("c"),
+		},
+		KV{
+			Keys:  Keyify("x", "c"),
+			Value: []byte("d"),
+		},
+		KV{
+			Keys:  Keyify("x", "d"),
+			Value: []byte("e"),
+		},
 	}
-	if string(coll[0].Key) != "b" || string(coll[0].Value) != "c" {
-		t.Errorf("Wrong value")
+	if !reflect.DeepEqual(coll, wanted) {
+		t.Fatalf("%v != %v", coll, wanted)
 	}
-	if string(coll[1].Key) != "c" || string(coll[1].Value) != "d" {
-		t.Errorf("Wrong value")
-	}
-	if string(coll[2].Key) != "d" || string(coll[2].Value) != "e" {
-		t.Errorf("Wrong value")
-	}
-	d.SubClear([]byte("x"))
-	coll = d.GetCollection([]byte("x"))
+	d.ClearAll(Keyify("x"))
+	coll = d.GetCollection(Keyify("x"))
 	if len(coll) != 0 {
-		t.Errorf("Wanted 3 elements")
+		t.Errorf("Wanted 0 elements")
 	}
 }
 
@@ -100,29 +135,33 @@ func TestCollection2(t *testing.T) {
 	}
 	defer d.Close()
 	d.Clear()
-	d.SubSet([]byte("a"), []byte("b"), []byte("1"))
-	d.SubSet([]byte("x"), []byte("b"), []byte("c"))
-	d.SubSet([]byte("x"), []byte("c"), []byte("d"))
-	d.SubSet([]byte("x"), []byte("d"), []byte("e"))
-	d.Set([]byte("x"), []byte("b"))
-	d.Set([]byte("z"), []byte("b"))
-	coll := d.GetCollection([]byte("x"))
-	if len(coll) != 3 {
-		t.Fatalf("Wanted 3 elements, got %v", coll)
+	d.Set(Keyify("a"), []byte("1"))
+	d.Set(Keyify("x", "b"), []byte("c"))
+	d.Set(Keyify("x", "c"), []byte("d"))
+	d.Set(Keyify("x", "d"), []byte("e"))
+	d.Set(Keyify("z"), []byte("1"))
+	coll := d.GetCollection(Keyify("x"))
+	wanted := []KV{
+		KV{
+			Keys:  Keyify("x", "b"),
+			Value: []byte("c"),
+		},
+		KV{
+			Keys:  Keyify("x", "c"),
+			Value: []byte("d"),
+		},
+		KV{
+			Keys:  Keyify("x", "d"),
+			Value: []byte("e"),
+		},
 	}
-	if string(coll[0].Key) != "b" || string(coll[0].Value) != "c" {
-		t.Errorf("Wrong value")
+	if !reflect.DeepEqual(coll, wanted) {
+		t.Fatalf("%v != %v", coll, wanted)
 	}
-	if string(coll[1].Key) != "c" || string(coll[1].Value) != "d" {
-		t.Errorf("Wrong value")
-	}
-	if string(coll[2].Key) != "d" || string(coll[2].Value) != "e" {
-		t.Errorf("Wrong value")
-	}
-	d.SubClear([]byte("x"))
-	coll = d.GetCollection([]byte("x"))
+	d.ClearAll(Keyify("x"))
+	coll = d.GetCollection(Keyify("x"))
 	if len(coll) != 0 {
-		t.Errorf("Wanted 3 elements")
+		t.Errorf("Wanted 0 elements")
 	}
 }
 
@@ -133,25 +172,88 @@ func TestCollection3(t *testing.T) {
 	}
 	defer d.Close()
 	d.Clear()
-	d.SubSet([]byte("x"), []byte{0, 0}, []byte("c"))
-	d.SubSet([]byte("x"), []byte{0, 1}, []byte("d"))
-	d.SubSet([]byte("x"), []byte{0, 2}, []byte("e"))
-	coll := d.GetCollection([]byte("x"))
-	if len(coll) != 3 {
-		t.Fatalf("Wanted 3 elements, got %v", coll)
+	d.Set([][]byte{[]byte{0, 1}, []byte{0, 0}}, []byte("c"))
+	d.Set([][]byte{[]byte{0, 1}, []byte{0, 1}}, []byte("d"))
+	d.Set([][]byte{[]byte{0, 1}, []byte{1, 0}}, []byte("e"))
+	coll := d.GetCollection([][]byte{[]byte{0, 1}})
+	wanted := []KV{
+		KV{
+			Keys:  [][]byte{[]byte{0, 1}, []byte{0, 0}},
+			Value: []byte("c"),
+		},
+		KV{
+			Keys:  [][]byte{[]byte{0, 1}, []byte{0, 1}},
+			Value: []byte("d"),
+		},
+		KV{
+			Keys:  [][]byte{[]byte{0, 1}, []byte{1, 0}},
+			Value: []byte("e"),
+		},
 	}
-	if bytes.Compare(coll[0].Key, []byte{0, 0}) != 0 || string(coll[0].Value) != "c" {
-		t.Errorf("Wrong value")
+	if !reflect.DeepEqual(coll, wanted) {
+		t.Fatalf("%v != %v", coll, wanted)
 	}
-	if bytes.Compare(coll[1].Key, []byte{0, 1}) != 0 || string(coll[1].Value) != "d" {
-		t.Errorf("Wrong value")
-	}
-	if bytes.Compare(coll[2].Key, []byte{0, 2}) != 0 || string(coll[2].Value) != "e" {
-		t.Errorf("Wrong value")
-	}
-	d.SubClear([]byte("x"))
-	coll = d.GetCollection([]byte("x"))
+	d.ClearAll([][]byte{[]byte{0, 1}})
+	coll = d.GetCollection(Keyify("x"))
 	if len(coll) != 0 {
-		t.Errorf("Wanted 3 elements")
+		t.Errorf("Wanted 0 elements")
+	}
+}
+
+func TestMultiLevelCollection(t *testing.T) {
+	d, err := New("test")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer d.Close()
+	d.Clear()
+	d.Set(Keyify("a", "b", "c"), []byte("d"))
+	d.Set(Keyify("a", "b", "d"), []byte("e"))
+	d.Set(Keyify("a", "b", "e"), []byte("f"))
+	d.Set(Keyify("a", "c", "f"), []byte("g"))
+	coll := d.GetCollection(Keyify("a"))
+	wanted := []KV{
+		KV{
+			Keys:  Keyify("a", "b", "c"),
+			Value: []byte("d"),
+		},
+		KV{
+			Keys:  Keyify("a", "b", "d"),
+			Value: []byte("e"),
+		},
+		KV{
+			Keys:  Keyify("a", "b", "e"),
+			Value: []byte("f"),
+		},
+		KV{
+			Keys:  Keyify("a", "c", "f"),
+			Value: []byte("g"),
+		},
+	}
+	if !reflect.DeepEqual(coll, wanted) {
+		t.Fatalf("%#v != %v", coll, wanted)
+	}
+	coll = d.GetCollection(Keyify("a", "b"))
+	wanted = []KV{
+		KV{
+			Keys:  Keyify("a", "b", "c"),
+			Value: []byte("d"),
+		},
+		KV{
+			Keys:  Keyify("a", "b", "d"),
+			Value: []byte("e"),
+		},
+		KV{
+			Keys:  Keyify("a", "b", "e"),
+			Value: []byte("f"),
+		},
+	}
+	if !reflect.DeepEqual(coll, wanted) {
+		t.Fatalf("%#v != %v", coll, wanted)
+	}
+	d.ClearAll(Keyify("a"))
+	coll = d.GetCollection(Keyify("a"))
+	if len(coll) != 0 {
+		t.Errorf("Wanted 0 elements")
 	}
 }

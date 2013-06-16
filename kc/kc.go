@@ -5,45 +5,46 @@ import (
 	"fmt"
 )
 
-func zeroes(bs []byte) (result int) {
-	for _, b := range bs {
-		if b == 0 {
-			result++
-		}
-	}
-	return
-}
-
 func escape(bs []byte) (result []byte) {
-	result = make([]byte, len(bs)+zeroes(bs))
-	bsIndex := 0
-	resultIndex := 0
-	for bsIndex < len(bs) {
-		if bs[bsIndex] == 0 {
-			result[resultIndex], result[resultIndex+1] = 0, 0
-			resultIndex++
+	for index := 0; index < len(bs); index++ {
+		if bs[index] == 0 {
+			result = append(result, 0, 0)
 		} else {
-			result[resultIndex] = bs[bsIndex]
+			result = append(result, bs[index])
 		}
-		resultIndex++
-		bsIndex++
 	}
 	return
 }
 
-func unescape(bs []byte) (result []byte) {
-	result = make([]byte, len(bs)-(zeroes(bs)/2))
-	bsIndex := 0
-	resultIndex := 0
-	for bsIndex < len(bs) {
-		if bs[bsIndex] == 0 && bs[bsIndex+1] == 0 {
-			result[resultIndex] = 0
-			bsIndex++
+func join(keys [][]byte) (result []byte) {
+	for _, key := range keys {
+		result = append(result, escape(key)...)
+		result = append(result, 0, 1)
+	}
+	return
+}
+
+func split(key []byte) (result [][]byte) {
+	var last []byte
+	for index := 0; index < len(key); index++ {
+		if key[index] == 0 {
+			if key[index+1] == 1 {
+				result = append(result, last)
+				last = nil
+			} else {
+				last = append(last, 0)
+			}
+			index++
 		} else {
-			result[resultIndex] = bs[bsIndex]
+			last = append(last, key[index])
 		}
-		resultIndex++
-		bsIndex++
+	}
+	return
+}
+
+func Keyify(keys ...string) (result [][]byte) {
+	for _, key := range keys {
+		result = append(result, []byte(key))
 	}
 	return
 }
