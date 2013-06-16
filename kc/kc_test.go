@@ -80,7 +80,7 @@ func TestCrud(t *testing.T) {
 }
 
 func TestError(t *testing.T) {
-	d, err := New("empty")
+	d, err := New("test")
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -247,5 +247,26 @@ func TestMultiLevelCollection(t *testing.T) {
 	coll = d.GetCollection(Keyify("a"))
 	if len(coll) != 0 {
 		t.Errorf("Wanted 0 elements")
+	}
+}
+
+func TestSetOps(t *testing.T) {
+	d, err := New("test")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer d.Close()
+	d.Clear()
+	d.Set(Keyify("a", "b"), []byte("c"))
+	d.Set(Keyify("a", "c"), []byte("d"))
+	d.Set(Keyify("b", "c"), []byte("e"))
+	d.Set(Keyify("b", "d"), []byte("f"))
+	if !reflect.DeepEqual(d.SetOp("(I:ConCat a b)"), []KV{
+		KV{
+			Keys:  Keyify("c"),
+			Value: []byte("de"),
+		},
+	}) {
+		t.Errorf("Bad result")
 	}
 }

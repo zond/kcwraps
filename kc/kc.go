@@ -13,13 +13,13 @@ func escape(bs []byte) (result []byte) {
 			result = append(result, bs[index])
 		}
 	}
+	result = append(result, 0, 1)
 	return
 }
 
 func join(keys [][]byte) (result []byte) {
 	for _, key := range keys {
 		result = append(result, escape(key)...)
-		result = append(result, 0, 1)
 	}
 	return
 }
