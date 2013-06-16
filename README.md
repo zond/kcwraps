@@ -1,9 +1,9 @@
 kcwraps
 =======
 
-Some wrappers around (Kyoto Cabinet)[http://fallabs.com/kyotocabinet/].
+Some wrappers around (http://fallabs.com/kyotocabinet/)[Kyoto Cabinet].
 
 ## Bits
 
 * http://godoc.org/github.com/zond/kcwraps/kc
- * Provides sorted set functionality on top of (cabinet)[https://bitbucket.org/ww/cabinet].
+ * Provides sorted set functionality on top of (https://bitbucket.org/ww/cabinet)[cabinet].
