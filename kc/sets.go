@@ -13,7 +13,7 @@ type KV struct {
 }
 
 /*
-SubClear removes all values under keys.
+ClearAll removes all values under keys.
 */
 func (self *DB) ClearAll(keys [][]byte) {
 	self.each(keys, func(keys1 [][]byte, v []byte) {
