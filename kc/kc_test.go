@@ -250,7 +250,7 @@ func TestMultiLevelCollection(t *testing.T) {
 	}
 }
 
-func TestSetOps(t *testing.T) {
+func TestSetOps1(t *testing.T) {
 	d, err := New("test")
 	if err != nil {
 		t.Fatal(err.Error())
@@ -269,4 +269,30 @@ func TestSetOps(t *testing.T) {
 	}) {
 		t.Errorf("Bad result")
 	}
+}
+
+func TestSetOps2(t *testing.T) {
+	d, err := New("test")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer d.Close()
+	d.Clear()
+	d.Set(Keyify("a", "b", "a"), []byte("c"))
+	d.Set(Keyify("a", "b", "b"), []byte("c"))
+	d.Set(Keyify("a", "b", "c"), []byte("c"))
+	d.Set(Keyify("b", "c", "c"), []byte("e"))
+	d.Set(Keyify("b", "d", "c"), []byte("f"))
+	d.Set(Keyify("b", "d", "d"), []byte("f"))
+	found := d.SetOp("(I:ConCat a/b b/c b/d)")
+	wanted := []KV{
+		KV{
+			Keys:  Keyify("c"),
+			Value: []byte("cef"),
+		},
+	}
+	if !reflect.DeepEqual(found, wanted) {
+		t.Errorf("%+v != %+v", found, wanted)
+	}
+
 }
