@@ -53,7 +53,10 @@ func (self *DB) each(keys [][]byte, f func(keys [][]byte, value []byte)) {
 			panic(err)
 		}
 		if len(key) > len(joined) && bytes.Compare(joined, key[:len(joined)]) == 0 {
-			f(split(key), value)
+			splitKey := split(key)
+			if len(splitKey) == len(keys)+1 {
+				f(split(key), value)
+			}
 		} else {
 			break
 		}

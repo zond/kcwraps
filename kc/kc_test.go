@@ -212,19 +212,11 @@ func TestMultiLevelCollection(t *testing.T) {
 	d.Set(Keyify("a", "b", "e"), []byte("f"))
 	d.Set(Keyify("a", "c", "f"), []byte("g"))
 	coll := d.GetCollection(Keyify("a"))
+	if len(coll) != 0 {
+		t.Fatalf("wanted empty result, got %v", coll)
+	}
+	coll = d.GetCollection(Keyify("a", "c"))
 	wanted := []KV{
-		KV{
-			Keys:  Keyify("a", "b", "c"),
-			Value: []byte("d"),
-		},
-		KV{
-			Keys:  Keyify("a", "b", "d"),
-			Value: []byte("e"),
-		},
-		KV{
-			Keys:  Keyify("a", "b", "e"),
-			Value: []byte("f"),
-		},
 		KV{
 			Keys:  Keyify("a", "c", "f"),
 			Value: []byte("g"),
