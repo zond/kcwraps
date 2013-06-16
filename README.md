@@ -1,8 +1,9 @@
 kcwraps
 =======
 
-Pretty wrapper around Kyoto Cabinet to emulate putting subsets in the cabinet.
+Some wrappers around (Kyoto Cabinet)[http://fallabs.com/kyotocabinet/].
 
-## Docs
+## Bits
 
-http://godoc.org/github.com/zond/kcwraps/kc
+* http://godoc.org/github.com/zond/kcwraps/kc
+ * Provides sorted set functionality on top of (cabinet)[https://bitbucket.org/ww/cabinet].
