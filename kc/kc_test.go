@@ -294,5 +294,4 @@ func TestSetOps2(t *testing.T) {
 	if !reflect.DeepEqual(found, wanted) {
 		t.Errorf("%+v != %+v", found, wanted)
 	}
-
 }
