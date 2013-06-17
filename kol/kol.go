@@ -43,10 +43,31 @@ func New(path string) (result *DB, err error) {
 	return
 }
 
-func (self *DB) Del(id string) error {
-	return self.db.Remove(kc.Keyify(primaryKey, id))
+func (self *DB) Clear() error {
+	return self.db.Clear()
 }
 
+func (self *DB) Close() error {
+	return self.db.Close()
+}
+
+/*
+Del will delete the object with id in the database.
+*/
+func (self *DB) Del(id string) error {
+	if err := self.db.Remove(kc.Keyify(primaryKey, id)); err != nil {
+		if err.Error() == "no record" {
+			err = NotFound
+		}
+		return err
+	}
+	return nil
+}
+
+/*
+Get will find the object with id in the database, and
+JSON decode it into result.
+*/
 func (self *DB) Get(id string, result interface{}) error {
 	b, err := self.db.Get(kc.Keyify(primaryKey, id))
 	if err != nil {
@@ -66,9 +87,7 @@ func (self *DB) save(id string, obj interface{}) error {
 	return self.db.Set(kc.Keyify(primaryKey, id), bytes)
 }
 
-func (self *DB) create(idField reflect.Value, obj interface{}) error {
-	id := randomString()
-	idField.SetString(id)
+func (self *DB) create(id string, obj interface{}) error {
 	return self.save(id, obj)
 }
 
@@ -76,6 +95,16 @@ func (self *DB) update(id string, old, obj interface{}) error {
 	return self.save(id, obj)
 }
 
+/*
+Set will JSON encode obj and insert it into the database
+
+Obj must be a pointer to a struct having an Id field that is a string.
+
+If the Id field is empty, a random Id will be provided.
+
+If no object with the same Id exists in the database, a create will be performed,
+otherwise an update.
+*/
 func (self *DB) Set(obj interface{}) error {
 	ptrValue := reflect.ValueOf(obj)
 	if ptrValue.Kind() != reflect.Ptr {
@@ -95,13 +124,20 @@ func (self *DB) Set(obj interface{}) error {
 	if id.Kind() != reflect.String {
 		return fmt.Errorf("%v does not have a string Id field", obj)
 	}
-	old := reflect.New(value.Type()).Interface()
-	if err := self.Get(id.String(), old); err == nil {
-		return self.update(id.String(), old, obj)
+	if id.String() == "" {
+		idString := randomString()
+		id.SetString(idString)
+		return self.create(idString, obj)
 	} else {
-		if err != NotFound {
-			return err
+		idString := id.String()
+		old := reflect.New(value.Type()).Interface()
+		if err := self.Get(idString, old); err == nil {
+			return self.update(idString, old, obj)
+		} else {
+			if err != NotFound {
+				return err
+			}
+			return self.create(idString, obj)
 		}
-		return self.create(id, obj)
 	}
 }

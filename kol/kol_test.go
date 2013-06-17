@@ -16,6 +16,11 @@ func TestCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
+	d.Clear()
+	defer d.Close()
+	if err := d.Del("hepp"); err != NotFound {
+		t.Errorf(err.Error())
+	}
 	hehu := testStruct{
 		Name: "hehu",
 		Age:  12,
