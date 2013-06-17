@@ -28,6 +28,32 @@ func randomString() string {
 	return base64.StdEncoding.EncodeToString(b)
 }
 
+func identify(obj interface{}) (value, id reflect.Value, err error) {
+	ptrValue := reflect.ValueOf(obj)
+	if ptrValue.Kind() != reflect.Ptr {
+		err = fmt.Errorf("%v is not a pointer", obj)
+		return
+	}
+	value = ptrValue.Elem()
+	if value.Kind() != reflect.Struct {
+		err = fmt.Errorf("%v is not a pointer to a struct", obj)
+		return
+	}
+	id = value.FieldByName("Id")
+	if id.Kind() == reflect.Invalid {
+		err = fmt.Errorf("%v does not have an Id field", obj)
+		return
+	}
+	if !id.CanSet() {
+		err = fmt.Errorf("%v can not assign its Id field", obj)
+		return
+	}
+	if id.Kind() != reflect.String {
+		err = fmt.Errorf("%v does not have a string Id field", obj)
+	}
+	return
+}
+
 type DB struct {
 	db kc.DB
 }
@@ -54,8 +80,12 @@ func (self *DB) Close() error {
 /*
 Del will delete the object with id in the database.
 */
-func (self *DB) Del(id string) error {
-	if err := self.db.Remove(kc.Keyify(primaryKey, id)); err != nil {
+func (self *DB) Del(obj interface{}) error {
+	_, id, err := identify(obj)
+	if err != nil {
+		return err
+	}
+	if err := self.db.Remove(kc.Keyify(primaryKey, id.String())); err != nil {
 		if err.Error() == "no record" {
 			err = NotFound
 		}
@@ -87,12 +117,59 @@ func (self *DB) save(id string, obj interface{}) error {
 	return self.db.Set(kc.Keyify(primaryKey, id), bytes)
 }
 
+func (self *DB) begin() error {
+	return self.db.BeginTran(false)
+}
+
+func (self *DB) abort() error {
+	return self.db.EndTran(false)
+}
+
+func (self *DB) commit() error {
+	return self.db.EndTran(true)
+}
+
+func (self *DB) index(id string, obj interface{}) error {
+	fmt.Println("implement index")
+	return nil
+}
+
+func (self *DB) deIndex(id string, obj interface{}) error {
+	fmt.Println("implement deIndex")
+	return nil
+}
+
 func (self *DB) create(id string, obj interface{}) error {
-	return self.save(id, obj)
+	if err := self.begin(); err != nil {
+		return err
+	}
+	if err := self.index(id, obj); err != nil {
+		return err
+	}
+	if err := self.save(id, obj); err != nil {
+		self.abort()
+		return err
+	}
+	return self.commit()
 }
 
 func (self *DB) update(id string, old, obj interface{}) error {
-	return self.save(id, obj)
+	if err := self.begin(); err != nil {
+		return err
+	}
+	if err := self.deIndex(id, old); err != nil {
+		self.abort()
+		return err
+	}
+	if err := self.index(id, obj); err != nil {
+		self.abort()
+		return err
+	}
+	if err := self.save(id, obj); err != nil {
+		self.abort()
+		return err
+	}
+	return self.commit()
 }
 
 /*
@@ -106,23 +183,9 @@ If no object with the same Id exists in the database, a create will be performed
 otherwise an update.
 */
 func (self *DB) Set(obj interface{}) error {
-	ptrValue := reflect.ValueOf(obj)
-	if ptrValue.Kind() != reflect.Ptr {
-		return fmt.Errorf("%v is not a pointer", obj)
-	}
-	value := ptrValue.Elem()
-	if value.Kind() != reflect.Struct {
-		return fmt.Errorf("%v is not a pointer to a struct", obj)
-	}
-	id := value.FieldByName("Id")
-	if id.Kind() == reflect.Invalid {
-		return fmt.Errorf("%v does not have an Id field", obj)
-	}
-	if !id.CanSet() {
-		return fmt.Errorf("%v can not assign its Id field", obj)
-	}
-	if id.Kind() != reflect.String {
-		return fmt.Errorf("%v does not have a string Id field", obj)
+	value, id, err := identify(obj)
+	if err != nil {
+		return err
 	}
 	if id.String() == "" {
 		idString := randomString()

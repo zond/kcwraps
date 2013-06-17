@@ -18,7 +18,8 @@ func TestCRUD(t *testing.T) {
 	}
 	d.Clear()
 	defer d.Close()
-	if err := d.Del("hepp"); err != NotFound {
+	mock := &testStruct{Id: "hepp"}
+	if err := d.Del(mock); err != NotFound {
 		t.Errorf(err.Error())
 	}
 	hehu := testStruct{
@@ -55,7 +56,7 @@ func TestCRUD(t *testing.T) {
 	if hehu3.Id != hehu.Id {
 		t.Errorf("Changed id")
 	}
-	if err := d.Del(hehu.Id); err != nil {
+	if err := d.Del(&hehu); err != nil {
 		t.Errorf(err.Error())
 	}
 	hehu4 := testStruct{}
