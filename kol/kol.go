@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	primaryKey = "primaryKey"
+	primaryKey = "pk"
+	kol        = "kol"
 )
 
 var NotFound = fmt.Errorf("Not found")
@@ -77,29 +78,64 @@ func (self *DB) Close() error {
 	return self.db.Close()
 }
 
-/*
-Del will delete the object with id in the database.
-*/
-func (self *DB) Del(obj interface{}) error {
-	_, id, err := identify(obj)
-	if err != nil {
+func (self *DB) trans(f func() error) (err error) {
+	if err = self.db.BeginTran(false); err != nil {
+		return
+	}
+	if err = f(); err != nil {
+		self.db.EndTran(false)
 		return err
 	}
-	if err := self.db.Remove(kc.Keyify(primaryKey, id.String())); err != nil {
-		if err.Error() == "no record" {
-			err = NotFound
-		}
-		return err
+	if err = self.db.EndTran(true); err != nil {
+		return self.db.EndTran(false)
 	}
-	return nil
+	return
 }
 
 /*
-Get will find the object with id in the database, and
-JSON decode it into result.
+Del will delete the obj from the database.
+
+Obj must be a pointer to a struct having a string Id field.
+*/
+func (self *DB) Del(obj interface{}) error {
+	value, id, err := identify(obj)
+	if err != nil {
+		return err
+	}
+	typ := value.Type()
+	return self.trans(func() error {
+		b, err := self.db.Get(kc.Keyify(primaryKey, typ.Name(), id.String()))
+		if err == nil {
+			if err := json.Unmarshal(b, obj); err != nil {
+				return err
+			}
+			if err := self.deIndex(id.String(), value, typ); err != nil {
+				return err
+			}
+		} else if err.Error() != "no record" {
+			return err
+		}
+		if err := self.db.Remove(kc.Keyify(primaryKey, typ.Name(), id.String())); err != nil {
+			if err.Error() == "no record" {
+				err = NotFound
+			}
+			return err
+		}
+		return nil
+	})
+}
+
+/*
+Get will find the object with id in the database, and JSON decode it into result.
+
+Result must be a pointer to a struct having a string Id field.
 */
 func (self *DB) Get(id string, result interface{}) error {
-	b, err := self.db.Get(kc.Keyify(primaryKey, id))
+	value, _, err := identify(result)
+	if err != nil {
+		return err
+	}
+	b, err := self.db.Get(kc.Keyify(primaryKey, value.Type().Name(), id))
 	if err != nil {
 		if err.Error() == "no record" {
 			err = NotFound
@@ -109,98 +145,66 @@ func (self *DB) Get(id string, result interface{}) error {
 	return json.Unmarshal(b, result)
 }
 
-func (self *DB) save(id string, obj interface{}) error {
+func (self *DB) save(id string, typ reflect.Type, obj interface{}) error {
 	bytes, err := json.Marshal(obj)
 	if err != nil {
 		return err
 	}
-	return self.db.Set(kc.Keyify(primaryKey, id), bytes)
+	return self.db.Set(kc.Keyify(primaryKey, typ.Name(), id), bytes)
 }
 
-func (self *DB) begin() error {
-	return self.db.BeginTran(false)
+func (self *DB) create(id string, value reflect.Value, typ reflect.Type, obj interface{}, inTrans bool) error {
+	creator := func() error {
+		if err := self.index(id, value, typ); err != nil {
+			return err
+		}
+		return self.save(id, typ, obj)
+	}
+	if inTrans {
+		return creator()
+	} else {
+		return self.trans(creator)
+	}
 }
 
-func (self *DB) abort() error {
-	return self.db.EndTran(false)
-}
-
-func (self *DB) commit() error {
-	return self.db.EndTran(true)
-}
-
-func (self *DB) index(id string, obj interface{}) error {
-	fmt.Println("implement index")
-	return nil
-}
-
-func (self *DB) deIndex(id string, obj interface{}) error {
-	fmt.Println("implement deIndex")
-	return nil
-}
-
-func (self *DB) create(id string, obj interface{}) error {
-	if err := self.begin(); err != nil {
+func (self *DB) update(id string, objValue reflect.Value, typ reflect.Type, old, obj interface{}) error {
+	if err := self.deIndex(id, reflect.ValueOf(old), typ); err != nil {
 		return err
 	}
-	if err := self.index(id, obj); err != nil {
+	if err := self.index(id, objValue, typ); err != nil {
 		return err
 	}
-	if err := self.save(id, obj); err != nil {
-		self.abort()
-		return err
-	}
-	return self.commit()
-}
-
-func (self *DB) update(id string, old, obj interface{}) error {
-	if err := self.begin(); err != nil {
-		return err
-	}
-	if err := self.deIndex(id, old); err != nil {
-		self.abort()
-		return err
-	}
-	if err := self.index(id, obj); err != nil {
-		self.abort()
-		return err
-	}
-	if err := self.save(id, obj); err != nil {
-		self.abort()
-		return err
-	}
-	return self.commit()
+	return self.save(id, typ, obj)
 }
 
 /*
 Set will JSON encode obj and insert it into the database
 
-Obj must be a pointer to a struct having an Id field that is a string.
+Obj must be a pointer to a struct having a string Id field.
 
-If the Id field is empty, a random Id will be provided.
-
-If no object with the same Id exists in the database, a create will be performed,
-otherwise an update.
+If the Id field is empty, a random Id will be set.
 */
 func (self *DB) Set(obj interface{}) error {
 	value, id, err := identify(obj)
 	if err != nil {
 		return err
 	}
-	if id.String() == "" {
-		idString := randomString()
+	if idString := id.String(); idString == "" {
+		idString = randomString()
 		id.SetString(idString)
-		return self.create(idString, obj)
+		return self.create(idString, value, value.Type(), obj, false)
 	} else {
-		idString := id.String()
-		old := reflect.New(value.Type()).Interface()
-		if err := self.Get(idString, old); err == nil {
-			return self.update(idString, old, obj)
-		} else {
-			if err != NotFound {
-				return err
+		typ := value.Type()
+		old := reflect.New(typ).Interface()
+		return self.trans(func() error {
+			if err := self.Get(idString, old); err == nil {
+				return self.update(idString, value, typ, old, obj)
+			} else {
+				if err != NotFound {
+					return err
+				}
+				return self.create(idString, value, value.Type(), obj, true)
 			}
-			return self.create(idString, obj)
-		}
+		})
 	}
 }

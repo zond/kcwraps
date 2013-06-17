@@ -7,7 +7,7 @@ import (
 
 type testStruct struct {
 	Id   string
-	Name string
+	Name string `kol:"index"`
 	Age  int
 }
 
