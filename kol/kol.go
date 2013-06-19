@@ -168,7 +168,7 @@ func (self *DB) create(id string, value reflect.Value, typ reflect.Type, obj int
 }
 
 func (self *DB) update(id string, objValue reflect.Value, typ reflect.Type, old, obj interface{}) error {
-	if err := self.deIndex(id, reflect.ValueOf(old), typ); err != nil {
+	if err := self.deIndex(id, reflect.ValueOf(old).Elem(), typ); err != nil {
 		return err
 	}
 	if err := self.index(id, objValue, typ); err != nil {

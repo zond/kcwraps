@@ -57,6 +57,18 @@ func (self *DB) index(id string, value reflect.Value, typ reflect.Type) error {
 }
 
 func (self *DB) deIndex(id string, value reflect.Value, typ reflect.Type) error {
-	fmt.Println("implement deIndex")
+	eachIndexedAttribute(value, typ, func(key, value []byte) error {
+		keys := [][]byte{
+			[]byte(secondaryIndex),
+			[]byte(typ.Name()),
+			key,
+			value,
+			[]byte(id),
+		}
+		if err := self.db.Remove(keys); err != nil {
+			return err
+		}
+		return nil
+	})
 	return nil
 }
