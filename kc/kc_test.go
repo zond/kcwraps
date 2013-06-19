@@ -22,12 +22,12 @@ func randBytes() (result []byte) {
 
 func TestSplitJoin1(t *testing.T) {
 	keys := [][]byte{[]byte{0, 1}, []byte{1, 2}}
-	joined := join(keys)
+	joined := JoinKeys(keys)
 	wanted := []byte{0, 0, 1, 0, 1, 1, 2, 0, 1}
 	if bytes.Compare(joined, wanted) != 0 {
-		t.Fatalf("%v != %v", join(keys), wanted)
+		t.Fatalf("%v != %v", JoinKeys(keys), wanted)
 	}
-	splitted := split(joined)
+	splitted := SplitKeys(joined)
 	if len(splitted) != len(keys) {
 		t.Fatalf("%v != %v", splitted, keys)
 	}
@@ -45,7 +45,7 @@ func TestSplitJoin2(t *testing.T) {
 			for k := 0; k < j; k++ {
 				keys = append(keys, randBytes())
 			}
-			keys2 := split(join(keys))
+			keys2 := SplitKeys(JoinKeys(keys))
 			if len(keys) != len(keys2) {
 				t.Fatalf("%v != %v", keys, keys2)
 			}
@@ -261,7 +261,7 @@ func TestSetOps1(t *testing.T) {
 	d.Set(Keyify("a", "c"), []byte("d"))
 	d.Set(Keyify("b", "c"), []byte("e"))
 	d.Set(Keyify("b", "d"), []byte("f"))
-	if !reflect.DeepEqual(d.SetOp("(I:ConCat a b)"), []KV{
+	if !reflect.DeepEqual(d.SetOpString("(I:ConCat a b)"), []KV{
 		KV{
 			Keys:  Keyify("c"),
 			Value: []byte("de"),
@@ -284,7 +284,7 @@ func TestSetOps2(t *testing.T) {
 	d.Set(Keyify("b", "c", "c"), []byte("e"))
 	d.Set(Keyify("b", "d", "c"), []byte("f"))
 	d.Set(Keyify("b", "d", "d"), []byte("f"))
-	found := d.SetOp("(I:ConCat a/b b/c b/d)")
+	found := d.SetOpString("(I:ConCat a/b b/c b/d)")
 	wanted := []KV{
 		KV{
 			Keys:  Keyify("c"),

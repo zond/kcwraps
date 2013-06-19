@@ -39,14 +39,14 @@ func eachIndexedAttribute(value reflect.Value, typ reflect.Type, f func(key, val
 	return nil
 }
 
-func (self *DB) index(id string, value reflect.Value, typ reflect.Type) error {
+func (self *DB) index(id []byte, value reflect.Value, typ reflect.Type) error {
 	eachIndexedAttribute(value, typ, func(key, value []byte) error {
 		keys := [][]byte{
 			[]byte(secondaryIndex),
 			[]byte(typ.Name()),
 			key,
 			value,
-			[]byte(id),
+			id,
 		}
 		if err := self.db.Set(keys, []byte{0}); err != nil {
 			return err
@@ -56,14 +56,14 @@ func (self *DB) index(id string, value reflect.Value, typ reflect.Type) error {
 	return nil
 }
 
-func (self *DB) deIndex(id string, value reflect.Value, typ reflect.Type) error {
+func (self *DB) deIndex(id []byte, value reflect.Value, typ reflect.Type) error {
 	eachIndexedAttribute(value, typ, func(key, value []byte) error {
 		keys := [][]byte{
 			[]byte(secondaryIndex),
 			[]byte(typ.Name()),
 			key,
 			value,
-			[]byte(id),
+			id,
 		}
 		if err := self.db.Remove(keys); err != nil {
 			return err

@@ -1,7 +1,6 @@
 package kol
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/zond/kcwraps/kc"
@@ -21,12 +20,12 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func randomString() string {
-	b := make([]byte, 24)
-	for i, _ := range b {
-		b[i] = byte(rand.Int31())
+func randomBytes() (result []byte) {
+	result = make([]byte, 24)
+	for i, _ := range result {
+		result[i] = byte(rand.Int31())
 	}
-	return base64.StdEncoding.EncodeToString(b)
+	return
 }
 
 func identify(obj interface{}) (value, id reflect.Value, err error) {
@@ -49,8 +48,11 @@ func identify(obj interface{}) (value, id reflect.Value, err error) {
 		err = fmt.Errorf("%v can not assign its Id field", obj)
 		return
 	}
-	if id.Kind() != reflect.String {
-		err = fmt.Errorf("%v does not have a string Id field", obj)
+	if id.Kind() != reflect.Slice {
+		err = fmt.Errorf("%v does not have a byte slice Id field", obj)
+	}
+	if id.Type().Elem().Kind() != reflect.Uint8 {
+		err = fmt.Errorf("%v does not have a byte slice Id field", obj)
 	}
 	return
 }
@@ -68,6 +70,12 @@ func New(path string) (result *DB, err error) {
 		db: *kcdb,
 	}
 	return
+}
+
+func (self *DB) Query() *Query {
+	return &Query{
+		db: self,
+	}
 }
 
 func (self *DB) Clear() error {
@@ -104,18 +112,18 @@ func (self *DB) Del(obj interface{}) error {
 	}
 	typ := value.Type()
 	return self.trans(func() error {
-		b, err := self.db.Get(kc.Keyify(primaryKey, typ.Name(), id.String()))
+		b, err := self.db.Get(kc.Keyify(primaryKey, typ.Name(), id.Bytes()))
 		if err == nil {
 			if err := json.Unmarshal(b, obj); err != nil {
 				return err
 			}
-			if err := self.deIndex(id.String(), value, typ); err != nil {
+			if err := self.deIndex(id.Bytes(), value, typ); err != nil {
 				return err
 			}
 		} else if err.Error() != "no record" {
 			return err
 		}
-		if err := self.db.Remove(kc.Keyify(primaryKey, typ.Name(), id.String())); err != nil {
+		if err := self.db.Remove(kc.Keyify(primaryKey, typ.Name(), id.Bytes())); err != nil {
 			if err.Error() == "no record" {
 				err = NotFound
 			}
@@ -130,7 +138,7 @@ Get will find the object with id in the database, and JSON decode it into result
 
 Result must be a pointer to a struct having a string Id field.
 */
-func (self *DB) Get(id string, result interface{}) error {
+func (self *DB) Get(id []byte, result interface{}) error {
 	value, _, err := identify(result)
 	if err != nil {
 		return err
@@ -145,7 +153,7 @@ func (self *DB) Get(id string, result interface{}) error {
 	return json.Unmarshal(b, result)
 }
 
-func (self *DB) save(id string, typ reflect.Type, obj interface{}) error {
+func (self *DB) save(id []byte, typ reflect.Type, obj interface{}) error {
 	bytes, err := json.Marshal(obj)
 	if err != nil {
 		return err
@@ -153,7 +161,7 @@ func (self *DB) save(id string, typ reflect.Type, obj interface{}) error {
 	return self.db.Set(kc.Keyify(primaryKey, typ.Name(), id), bytes)
 }
 
-func (self *DB) create(id string, value reflect.Value, typ reflect.Type, obj interface{}, inTrans bool) error {
+func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj interface{}, inTrans bool) error {
 	creator := func() error {
 		if err := self.index(id, value, typ); err != nil {
 			return err
@@ -167,7 +175,7 @@ func (self *DB) create(id string, value reflect.Value, typ reflect.Type, obj int
 	}
 }
 
-func (self *DB) update(id string, objValue reflect.Value, typ reflect.Type, old, obj interface{}) error {
+func (self *DB) update(id []byte, objValue reflect.Value, typ reflect.Type, old, obj interface{}) error {
 	if err := self.deIndex(id, reflect.ValueOf(old).Elem(), typ); err != nil {
 		return err
 	}
@@ -189,21 +197,21 @@ func (self *DB) Set(obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	if idString := id.String(); idString == "" {
-		idString = randomString()
-		id.SetString(idString)
-		return self.create(idString, value, value.Type(), obj, false)
+	if idBytes := id.Bytes(); idBytes == nil {
+		idBytes = randomBytes()
+		id.SetBytes(idBytes)
+		return self.create(idBytes, value, value.Type(), obj, false)
 	} else {
 		typ := value.Type()
 		old := reflect.New(typ).Interface()
 		return self.trans(func() error {
-			if err := self.Get(idString, old); err == nil {
-				return self.update(idString, value, typ, old, obj)
+			if err := self.Get(idBytes, old); err == nil {
+				return self.update(idBytes, value, typ, old, obj)
 			} else {
 				if err != NotFound {
 					return err
 				}
-				return self.create(idString, value, value.Type(), obj, true)
+				return self.create(idBytes, value, value.Type(), obj, true)
 			}
 		})
 	}

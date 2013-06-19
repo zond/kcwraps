@@ -17,14 +17,14 @@ func escape(bs []byte) (result []byte) {
 	return
 }
 
-func join(keys [][]byte) (result []byte) {
+func JoinKeys(keys [][]byte) (result []byte) {
 	for _, key := range keys {
 		result = append(result, escape(key)...)
 	}
 	return
 }
 
-func split(key []byte) (result [][]byte) {
+func SplitKeys(key []byte) (result [][]byte) {
 	var last []byte
 	for index := 0; index < len(key); index++ {
 		if key[index] == 0 {
@@ -42,9 +42,15 @@ func split(key []byte) (result [][]byte) {
 	return
 }
 
-func Keyify(keys ...string) (result [][]byte) {
+func Keyify(keys ...interface{}) (result [][]byte) {
 	for _, key := range keys {
-		result = append(result, []byte(key))
+		if str, ok := key.(string); ok {
+			result = append(result, []byte(str))
+		} else if b, ok := key.([]byte); ok {
+			result = append(result, b)
+		} else {
+			panic(fmt.Errorf("Can only Keyify strings and bytes slices, not %v", keys))
+		}
 	}
 	return
 }
