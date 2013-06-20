@@ -17,6 +17,7 @@ func escape(bs []byte) (result []byte) {
 	return
 }
 
+// JoinKeys creates a single cabinet key from the provided keys
 func JoinKeys(keys [][]byte) (result []byte) {
 	for _, key := range keys {
 		result = append(result, escape(key)...)
@@ -24,6 +25,7 @@ func JoinKeys(keys [][]byte) (result []byte) {
 	return
 }
 
+// SplitKeys splits a cabinet key into a key slice
 func SplitKeys(key []byte) (result [][]byte) {
 	var last []byte
 	for index := 0; index < len(key); index++ {
@@ -42,6 +44,7 @@ func SplitKeys(key []byte) (result [][]byte) {
 	return
 }
 
+// Keyify is a utility to convert a set of strings and []byte to a [][]byte
 func Keyify(keys ...interface{}) (result [][]byte) {
 	for _, key := range keys {
 		if str, ok := key.(string); ok {
@@ -56,7 +59,8 @@ func Keyify(keys ...interface{}) (result [][]byte) {
 }
 
 /*
-DB includes http://godoc.org/bitbucket.org/ww/cabinet#KCDB and adds a few more convenience functions.
+DB includes http://godoc.org/bitbucket.org/ww/cabinet#KCDB and adds a few more convenience functions and support for multi level keys.
+All functions that process keys have been overridden to use the multi level key scheme.
 */
 type DB struct {
 	cabinet.KCDB

@@ -51,6 +51,7 @@ func (self *DB) skipperString(b []byte) setop.Skipper {
 	return result
 }
 
+// SetOpString will execute the provided set expression and return the matches.
 func (self *DB) SetOpString(expr string) (result []KV) {
 	if err := (&setop.SetExpression{
 		Code: expr,
