@@ -66,9 +66,10 @@ func (self Equals) source(typ reflect.Type) (result setop.SetOpSource, err error
 }
 
 type Query struct {
-	db     *DB
-	typ    reflect.Type
-	filter qFilter
+	db           *DB
+	typ          reflect.Type
+	intersection qFilter
+	difference   qFilter
 }
 
 func (self *Query) each(f func(elementPointer reflect.Value)) error {
@@ -81,12 +82,28 @@ func (self *Query) each(f func(elementPointer reflect.Value)) error {
 		Type:  setop.Intersection,
 		Merge: setop.First,
 	}
-	if self.filter != nil {
-		source, err := self.filter.source(self.typ)
+	if self.intersection != nil {
+		source, err := self.intersection.source(self.typ)
 		if err != nil {
 			return err
 		}
 		op.Sources = append(op.Sources, source)
+	}
+	if self.difference != nil {
+		source, err := self.difference.source(self.typ)
+		if err != nil {
+			return err
+		}
+		op = &setop.SetOp{
+			Sources: []setop.SetOpSource{
+				setop.SetOpSource{
+					SetOp: op,
+				},
+				source,
+			},
+			Type:  setop.Difference,
+			Merge: setop.First,
+		}
 	}
 	for _, kv := range self.db.db.SetOp(&setop.SetExpression{
 		Op: op,
@@ -99,8 +116,13 @@ func (self *Query) each(f func(elementPointer reflect.Value)) error {
 	return nil
 }
 
+func (self *Query) Except(f qFilter) *Query {
+	self.difference = f
+	return self
+}
+
 func (self *Query) Filter(f qFilter) *Query {
-	self.filter = f
+	self.intersection = f
 	return self
 }
 

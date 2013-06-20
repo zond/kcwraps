@@ -132,4 +132,18 @@ func TestQuery(t *testing.T) {
 	if len(res) != 0 {
 		t.Errorf("Wanted [] but got %v", res)
 	}
+	res = nil
+	if err := d.Query().Filter(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 12}, Equals{"Age", 11}}}).Except(Equals{"Name", "blapp"}).All(&res); err != nil {
+		t.Errorf(err.Error())
+	}
+	if !reflect.DeepEqual(res, wanted) {
+		t.Errorf("Wanted %v but got %v", wanted, res)
+	}
+	res = nil
+	if err := d.Query().Filter(And{Equals{"Name", "blapp"}, Or{Equals{"Age", 11}, Equals{"Age", 13}}}).Except(Equals{"Name", "hehu"}).All(&res); err != nil {
+		t.Errorf(err.Error())
+	}
+	if len(res) != 0 {
+		t.Errorf("Wanted [] but got %v", res)
+	}
 }
