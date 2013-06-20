@@ -117,7 +117,7 @@ type Query struct {
 }
 
 /*
-Subscribe will run the subscriber function with all database updates matching this query.
+Subscribe will call the subscriber function on all database updates matching this query.
 
 name is used to separate different subscriptions, and to unsubscribe.
 
