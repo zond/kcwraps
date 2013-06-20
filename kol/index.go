@@ -1,6 +1,8 @@
 package kol
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"reflect"
 	"strings"
@@ -11,7 +13,38 @@ const (
 	secondaryIndex = "2i"
 )
 
-func eachIndexedAttribute(value reflect.Value, typ reflect.Type, f func(key, value []byte) error) error {
+func indexBytes(typ reflect.Type, value reflect.Value) (b []byte, err error) {
+	switch typ.Kind() {
+	case reflect.String:
+		b = []byte(value.String())
+	case reflect.Int:
+		buf := new(bytes.Buffer)
+		if err = binary.Write(buf, binary.BigEndian, value.Int()); err != nil {
+			return
+		}
+		b = buf.Bytes()
+	default:
+		err = fmt.Errorf("%v is not an indexable type", value)
+	}
+	return
+}
+
+func indexKey(id []byte, typ reflect.Type, fieldName string, fieldType reflect.Type, fieldValue reflect.Value) (keys [][]byte, err error) {
+	var valuePart []byte
+	if valuePart, err = indexBytes(fieldType, fieldValue); err != nil {
+		return
+	}
+	keys = [][]byte{
+		[]byte(secondaryIndex),
+		[]byte(typ.Name()),
+		[]byte(fieldName),
+		valuePart,
+		id,
+	}
+	return
+}
+
+func eachIndexedKey(id []byte, value reflect.Value, typ reflect.Type, f func(keys [][]byte) error) error {
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
 		if kolTag := field.Tag.Get(kol); kolTag != "" {
@@ -23,14 +56,11 @@ func eachIndexedAttribute(value reflect.Value, typ reflect.Type, f func(key, val
 				}
 			}
 			if isIndexed {
-				var indexValue []byte
-				switch field.Type.Kind() {
-				case reflect.String:
-					indexValue = []byte(value.Field(i).String())
-				default:
-					return fmt.Errorf("%v.%v is not an indexable type", value, field.Name)
+				keys, err := indexKey(id, typ, field.Name, field.Type, value.Field(i))
+				if err != nil {
+					return err
 				}
-				if err := f([]byte(field.Name), indexValue); err != nil {
+				if err = f(keys); err != nil {
 					return err
 				}
 			}
@@ -40,35 +70,19 @@ func eachIndexedAttribute(value reflect.Value, typ reflect.Type, f func(key, val
 }
 
 func (self *DB) index(id []byte, value reflect.Value, typ reflect.Type) error {
-	eachIndexedAttribute(value, typ, func(key, value []byte) error {
-		keys := [][]byte{
-			[]byte(secondaryIndex),
-			[]byte(typ.Name()),
-			key,
-			value,
-			id,
-		}
+	return eachIndexedKey(id, value, typ, func(keys [][]byte) error {
 		if err := self.db.Set(keys, []byte{0}); err != nil {
 			return err
 		}
 		return nil
 	})
-	return nil
 }
 
 func (self *DB) deIndex(id []byte, value reflect.Value, typ reflect.Type) error {
-	eachIndexedAttribute(value, typ, func(key, value []byte) error {
-		keys := [][]byte{
-			[]byte(secondaryIndex),
-			[]byte(typ.Name()),
-			key,
-			value,
-			id,
-		}
+	return eachIndexedKey(id, value, typ, func(keys [][]byte) error {
 		if err := self.db.Remove(keys); err != nil {
 			return err
 		}
 		return nil
 	})
-	return nil
 }
