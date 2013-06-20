@@ -267,3 +267,66 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Wanted %v but got %v", hehu, res2)
 	}
 }
+
+func TestIdSubscribe(t *testing.T) {
+	d, err := New("test")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	d.Clear()
+	defer d.Close()
+	hehu := testStruct{
+		Name: "hehu",
+		Age:  12,
+	}
+	if err := d.Set(&hehu); err != nil {
+		t.Fatalf(err.Error())
+	}
+	var removed []*testStruct
+	var created []*testStruct
+	var updated []*testStruct
+	var assertEvents = func(rem, cre, upd []*testStruct) {
+		if !reflect.DeepEqual(rem, removed) {
+			t.Errorf("Wanted %v to have been deleted, but got %v", rem, removed)
+		}
+		if !reflect.DeepEqual(cre, created) {
+			t.Errorf("Wanted %v to have been created, but got %v", cre, created)
+		}
+		if !reflect.DeepEqual(upd, updated) {
+			t.Errorf("Wanted %v to have been updated, but got %v", upd, updated)
+		}
+	}
+	done := make(chan bool)
+	if err := d.Subscribe("subtest1", &hehu, AllOps, func(obj interface{}, op Operation) {
+		switch op {
+		case Delete:
+			removed = append(removed, obj.(*testStruct))
+		case Create:
+			created = append(created, obj.(*testStruct))
+		case Update:
+			updated = append(updated, obj.(*testStruct))
+		}
+		done <- true
+	}); err != nil {
+		t.Errorf(err.Error())
+	}
+	if err := d.Del(&hehu); err != nil {
+		t.Errorf(err.Error())
+	}
+	<-done
+	assertEvents([]*testStruct{&hehu}, nil, nil)
+	hehu2 := hehu
+	hehu2.Name = "blepp"
+	if err := d.Set(&hehu2); err != nil {
+		t.Errorf(err.Error())
+	}
+	<-done
+	assertEvents([]*testStruct{&hehu}, []*testStruct{&hehu2}, nil)
+	hehu3 := hehu2
+	hehu3.Name = "jaja"
+	if err := d.Set(&hehu3); err != nil {
+		t.Errorf(err.Error())
+	}
+	<-done
+	assertEvents([]*testStruct{&hehu}, []*testStruct{&hehu2}, []*testStruct{&hehu3})
+}

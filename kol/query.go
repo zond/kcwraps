@@ -1,6 +1,7 @@
 package kol
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/zond/kcwraps/kc"
@@ -10,6 +11,7 @@ import (
 
 type qFilter interface {
 	source(typ reflect.Type) (result setop.SetOpSource, err error)
+	match(typ reflect.Type, value reflect.Value) (result bool, err error)
 }
 
 type Or []qFilter
@@ -27,6 +29,15 @@ func (self Or) source(typ reflect.Type) (result setop.SetOpSource, err error) {
 		op.Sources = append(op.Sources, newSource)
 	}
 	result.SetOp = &op
+	return
+}
+
+func (self Or) match(typ reflect.Type, value reflect.Value) (result bool, err error) {
+	for _, filter := range self {
+		if result, err = filter.match(typ, value); err != nil || result {
+			return
+		}
+	}
 	return
 }
 
@@ -48,6 +59,16 @@ func (self And) source(typ reflect.Type) (result setop.SetOpSource, err error) {
 	return
 }
 
+func (self And) match(typ reflect.Type, value reflect.Value) (result bool, err error) {
+	result, err = true, nil
+	for _, filter := range self {
+		if result, err = filter.match(typ, value); err != nil || !result {
+			return
+		}
+	}
+	return
+}
+
 type Equals struct {
 	Field string
 	Value interface{}
@@ -65,11 +86,61 @@ func (self Equals) source(typ reflect.Type) (result setop.SetOpSource, err error
 	return
 }
 
+func (self Equals) match(typ reflect.Type, value reflect.Value) (result bool, err error) {
+	selfValue := reflect.ValueOf(self.Value)
+	var selfBytes []byte
+	if selfBytes, err = indexBytes(typ, selfValue); err != nil {
+		return
+	}
+	var otherBytes []byte
+	if otherBytes, err = indexBytes(typ, value); err != nil {
+		return
+	}
+	result = bytes.Compare(selfBytes, otherBytes) == 0
+	return
+}
+
 type Query struct {
 	db           *DB
 	typ          reflect.Type
 	intersection qFilter
 	difference   qFilter
+}
+
+func (self *Query) Subscribe(name string, obj interface{}, ops Operation, subscriber Subscriber) (err error) {
+	var value reflect.Value
+	if value, _, err = identify(obj); err != nil {
+		return
+	}
+	self.typ = value.Type()
+	self.db.subscriptionsMutex.Lock()
+	defer self.db.subscriptionsMutex.Unlock()
+	self.db.subscriptions[name] = subscription{
+		matcher:    self.match,
+		subscriber: subscriber,
+		ops:        ops,
+		typ:        self.typ,
+	}
+	return
+}
+
+func (self *Query) match(typ reflect.Type, value reflect.Value) (result bool, err error) {
+	if self.typ.Name() != typ.Name() {
+		return
+	}
+	if self.intersection != nil {
+		if result, err = self.intersection.match(typ, value); err != nil || !result {
+			return
+		}
+	}
+	if self.difference != nil {
+		if result, err = self.difference.match(typ, value); err != nil || result {
+			result = true
+			return
+		}
+	}
+	result = true
+	return
 }
 
 func (self *Query) each(f func(elementPointer reflect.Value) bool) error {

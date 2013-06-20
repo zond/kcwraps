@@ -6,12 +6,14 @@ import (
 	"github.com/zond/kcwraps/kc"
 	"math/rand"
 	"reflect"
+	"sync"
 	"time"
 )
 
 const (
 	primaryKey = "pk"
 	kol        = "kol"
+	idField    = "Id"
 )
 
 var NotFound = fmt.Errorf("Not found")
@@ -39,7 +41,7 @@ func identify(obj interface{}) (value, id reflect.Value, err error) {
 		err = fmt.Errorf("%v is not a pointer to a struct", obj)
 		return
 	}
-	id = value.FieldByName("Id")
+	id = value.FieldByName(idField)
 	if id.Kind() == reflect.Invalid {
 		err = fmt.Errorf("%v does not have an Id field", obj)
 		return
@@ -58,7 +60,9 @@ func identify(obj interface{}) (value, id reflect.Value, err error) {
 }
 
 type DB struct {
-	db kc.DB
+	db                 kc.DB
+	subscriptionsMutex *sync.RWMutex
+	subscriptions      map[string]subscription
 }
 
 func New(path string) (result *DB, err error) {
@@ -67,7 +71,9 @@ func New(path string) (result *DB, err error) {
 		return
 	}
 	result = &DB{
-		db: *kcdb,
+		db:                 *kcdb,
+		subscriptionsMutex: new(sync.RWMutex),
+		subscriptions:      make(map[string]subscription),
 	}
 	return
 }
@@ -109,13 +115,14 @@ Del will delete the obj from the database.
 
 Obj must be a pointer to a struct having a string Id field.
 */
-func (self *DB) Del(obj interface{}) error {
-	value, id, err := identify(obj)
-	if err != nil {
-		return err
+func (self *DB) Del(obj interface{}) (err error) {
+	var value reflect.Value
+	var id reflect.Value
+	if value, id, err = identify(obj); err != nil {
+		return
 	}
 	typ := value.Type()
-	return self.trans(func() error {
+	if err = self.trans(func() error {
 		b, err := self.db.Get(kc.Keyify(primaryKey, typ.Name(), id.Bytes()))
 		if err == nil {
 			if err := json.Unmarshal(b, obj); err != nil {
@@ -134,7 +141,10 @@ func (self *DB) Del(obj interface{}) error {
 			return err
 		}
 		return nil
-	})
+	}); err == nil {
+		self.emit(typ, value, Delete)
+	}
+	return
 }
 
 /*
@@ -175,7 +185,11 @@ func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj int
 	if inTrans {
 		return creator()
 	} else {
-		return self.trans(creator)
+		if err := self.trans(creator); err != nil {
+			return err
+		}
+		self.emit(typ, value, Create)
+		return nil
 	}
 }
 
@@ -208,15 +222,23 @@ func (self *DB) Set(obj interface{}) error {
 	} else {
 		typ := value.Type()
 		old := reflect.New(typ).Interface()
-		return self.trans(func() error {
+		var op Operation
+		if err := self.trans(func() error {
 			if err := self.Get(idBytes, old); err == nil {
+				op = Update
 				return self.update(idBytes, value, typ, old, obj)
 			} else {
 				if err != NotFound {
 					return err
 				}
+				op = Create
 				return self.create(idBytes, value, value.Type(), obj, true)
 			}
-		})
+		}); err != nil {
+			return err
+		} else {
+			self.emit(typ, value, op)
+			return nil
+		}
 	}
 }
