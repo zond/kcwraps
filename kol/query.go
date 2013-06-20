@@ -14,7 +14,7 @@ type qFilter interface {
 	match(typ reflect.Type, value reflect.Value) (result bool, err error)
 }
 
-// Or defineds an OR operation.
+// Or is a qFilter that defineds an OR operation.
 type Or []qFilter
 
 func (self Or) source(typ reflect.Type) (result setop.SetOpSource, err error) {
@@ -42,7 +42,7 @@ func (self Or) match(typ reflect.Type, value reflect.Value) (result bool, err er
 	return
 }
 
-// And defines an AND operation.
+// And is a qFilter that defines an AND operation.
 type And []qFilter
 
 func (self And) source(typ reflect.Type) (result setop.SetOpSource, err error) {
@@ -71,7 +71,7 @@ func (self And) match(typ reflect.Type, value reflect.Value) (result bool, err e
 	return
 }
 
-// Equals defines an == operation.
+// Equals is a qFilter that defines an == operation.
 type Equals struct {
 	Field string
 	Value interface{}
