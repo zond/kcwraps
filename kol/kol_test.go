@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 )
 
 type testStruct struct {
@@ -329,4 +330,75 @@ func TestIdSubscribe(t *testing.T) {
 	}
 	<-done
 	assertEvents([]*testStruct{&hehu}, []*testStruct{&hehu2}, []*testStruct{&hehu3})
+	hehu4 := testStruct{
+		Name: "knasen",
+	}
+	if err := d.Set(&hehu4); err != nil {
+		t.Errorf(err.Error())
+	}
+	time.Sleep(time.Millisecond * 100)
+	assertEvents([]*testStruct{&hehu}, []*testStruct{&hehu2}, []*testStruct{&hehu3})
+}
+
+func TestQuerySubscribe(t *testing.T) {
+	d, err := New("test")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	d.Clear()
+	defer d.Close()
+	var removed []*testStruct
+	var created []*testStruct
+	var updated []*testStruct
+	var assertEvents = func(rem, cre, upd []*testStruct) {
+		if !reflect.DeepEqual(rem, removed) {
+			t.Errorf("Wanted %v to have been deleted, but got %v", rem, removed)
+		}
+		if !reflect.DeepEqual(cre, created) {
+			t.Errorf("Wanted %v to have been created, but got %v", cre, created)
+		}
+		if !reflect.DeepEqual(upd, updated) {
+			t.Errorf("Wanted %v to have been updated, but got %v", upd, updated)
+		}
+	}
+	done := make(chan bool)
+	hehu := testStruct{}
+	if err := d.Query().Filter(Equals{"Name", "qname"}).Subscribe("subtest1", &hehu, AllOps, func(obj interface{}, op Operation) {
+		switch op {
+		case Delete:
+			removed = append(removed, obj.(*testStruct))
+		case Create:
+			created = append(created, obj.(*testStruct))
+		case Update:
+			updated = append(updated, obj.(*testStruct))
+		}
+		done <- true
+	}); err != nil {
+		t.Errorf(err.Error())
+	}
+	hehu.Name = "qname"
+	if err := d.Set(&hehu); err != nil {
+		t.Errorf(err.Error())
+	}
+	<-done
+	assertEvents(nil, []*testStruct{&hehu}, nil)
+	hehu2 := hehu
+	hehu2.Age = 31
+	if err := d.Set(&hehu2); err != nil {
+		t.Errorf(err.Error())
+	}
+	<-done
+	assertEvents(nil, []*testStruct{&hehu}, []*testStruct{&hehu2})
+	if err := d.Del(&hehu2); err != nil {
+		t.Errorf(err.Error())
+	}
+	<-done
+	assertEvents([]*testStruct{&hehu2}, []*testStruct{&hehu}, []*testStruct{&hehu2})
+	hehu3 := hehu2
+	hehu3.Name = "othername"
+	if err := d.Set(&hehu3); err != nil {
+		t.Errorf(err.Error())
+	}
+	time.Sleep(time.Millisecond * 100)
+	assertEvents([]*testStruct{&hehu2}, []*testStruct{&hehu}, []*testStruct{&hehu2})
 }

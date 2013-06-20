@@ -88,12 +88,13 @@ func (self Equals) source(typ reflect.Type) (result setop.SetOpSource, err error
 
 func (self Equals) match(typ reflect.Type, value reflect.Value) (result bool, err error) {
 	selfValue := reflect.ValueOf(self.Value)
+	bothType := selfValue.Type()
 	var selfBytes []byte
-	if selfBytes, err = indexBytes(typ, selfValue); err != nil {
+	if selfBytes, err = indexBytes(bothType, selfValue); err != nil {
 		return
 	}
 	var otherBytes []byte
-	if otherBytes, err = indexBytes(typ, value); err != nil {
+	if otherBytes, err = indexBytes(bothType, value.FieldByName(self.Field)); err != nil {
 		return
 	}
 	result = bytes.Compare(selfBytes, otherBytes) == 0

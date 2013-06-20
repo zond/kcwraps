@@ -24,7 +24,7 @@ func indexBytes(typ reflect.Type, value reflect.Value) (b []byte, err error) {
 		}
 		b = buf.Bytes()
 	default:
-		err = fmt.Errorf("%v is not an indexable type", value)
+		err = fmt.Errorf("%v is not an indexable type", typ)
 	}
 	return
 }
