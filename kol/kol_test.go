@@ -259,4 +259,11 @@ func TestQuery(t *testing.T) {
 	if len(res) != 0 {
 		t.Errorf("Wanted [] but got %v", res)
 	}
+	var res2 testStruct
+	if err := d.Query().Filter(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 11}, Equals{"Age", 12}}}).Except(Equals{"Name", "blapp"}).First(&res2); err != nil {
+		t.Errorf(err.Error())
+	}
+	if !reflect.DeepEqual(hehu, res2) {
+		t.Errorf("Wanted %v but got %v", hehu, res2)
+	}
 }

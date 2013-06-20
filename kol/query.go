@@ -72,7 +72,7 @@ type Query struct {
 	difference   qFilter
 }
 
-func (self *Query) each(f func(elementPointer reflect.Value)) error {
+func (self *Query) each(f func(elementPointer reflect.Value) bool) error {
 	op := &setop.SetOp{
 		Sources: []setop.SetOpSource{
 			setop.SetOpSource{
@@ -110,7 +110,9 @@ func (self *Query) each(f func(elementPointer reflect.Value)) error {
 	}) {
 		obj := reflect.New(self.typ).Interface()
 		if err := json.Unmarshal(kv.Value, obj); err == nil {
-			f(reflect.ValueOf(obj))
+			if f(reflect.ValueOf(obj)) {
+				break
+			}
 		}
 	}
 	return nil
@@ -124,6 +126,19 @@ func (self *Query) Except(f qFilter) *Query {
 func (self *Query) Filter(f qFilter) *Query {
 	self.intersection = f
 	return self
+}
+
+func (self *Query) First(result interface{}) (err error) {
+	var value reflect.Value
+	if value, _, err = identify(result); err != nil {
+		return
+	}
+	self.typ = value.Type()
+	err = self.each(func(elementPointer reflect.Value) bool {
+		value.Set(elementPointer.Elem())
+		return true
+	})
+	return
 }
 
 func (self *Query) All(result interface{}) (err error) {
@@ -149,12 +164,13 @@ func (self *Query) All(result interface{}) (err error) {
 		return
 	}
 	self.typ = sliceElemType
-	err = self.each(func(elementPointer reflect.Value) {
+	err = self.each(func(elementPointer reflect.Value) bool {
 		if pointerSlice {
 			sliceValue.Set(reflect.Append(sliceValue, elementPointer))
 		} else {
 			sliceValue.Set(reflect.Append(sliceValue, elementPointer.Elem()))
 		}
+		return false
 	})
 	return
 }
