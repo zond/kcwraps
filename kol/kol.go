@@ -72,6 +72,10 @@ func New(path string) (result *DB, err error) {
 	return
 }
 
+func (self *DB) Count() (uint64, error) {
+	return self.db.Count()
+}
+
 func (self *DB) Query() *Query {
 	return &Query{
 		db: self,

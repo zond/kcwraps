@@ -2,6 +2,9 @@ package kol
 
 import (
 	"bytes"
+	"fmt"
+	"math/rand"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -10,6 +13,116 @@ type testStruct struct {
 	Id   []byte
 	Name string `kol:"index"`
 	Age  int    `kol:"index"`
+}
+
+var benchdb *DB
+
+type benchStruct1 struct {
+	Id   []byte
+	Name string
+}
+
+type benchStruct2 struct {
+	Id   []byte
+	Name string `kol:"index"`
+}
+
+func benchWrite(b *testing.B, size uint64) {
+	var err error
+	benchdb, err = New("bench")
+	if err != nil {
+		b.Fatalf(err.Error())
+	}
+	defer benchdb.Close()
+	var s1 benchStruct1
+	for count, _ := benchdb.Count(); count < size; count, _ = benchdb.Count() {
+		s1.Id = nil
+		s1.Name = fmt.Sprintf("%v%v", rand.Int63(), rand.Int63())
+		if err := benchdb.Set(&s1); err != nil {
+			b.Fatalf(err.Error())
+		}
+	}
+	toAdd := make([]benchStruct1, b.N)
+	for index, _ := range toAdd {
+		toAdd[index] = benchStruct1{
+			Name: fmt.Sprintf("%v%v", rand.Int63(), rand.Int63()),
+		}
+	}
+	b.StartTimer()
+	for _, s := range toAdd {
+		benchdb.Set(&s)
+	}
+}
+
+func BenchmarkWrite100(b *testing.B) {
+	b.StopTimer()
+	os.Remove("test.kct")
+	os.Remove("test.kct.wal")
+	benchWrite(b, 100)
+}
+
+func BenchmarkWrite1000(b *testing.B) {
+	b.StopTimer()
+	benchWrite(b, 1000)
+}
+
+func BenchmarkWrite10000(b *testing.B) {
+	b.StopTimer()
+	benchWrite(b, 10000)
+}
+
+func BenchmarkWrite100000(b *testing.B) {
+	b.StopTimer()
+	benchWrite(b, 100000)
+}
+
+func benchWriteIndex(b *testing.B, size uint64) {
+	var err error
+	benchdb, err = New("bench")
+	if err != nil {
+		b.Fatalf(err.Error())
+	}
+	defer benchdb.Close()
+	var s1 benchStruct2
+	for count, _ := benchdb.Count(); count < size; count, _ = benchdb.Count() {
+		s1.Id = nil
+		s1.Name = fmt.Sprintf("%v%v", rand.Int63(), rand.Int63())
+		if err := benchdb.Set(&s1); err != nil {
+			b.Fatalf(err.Error())
+		}
+	}
+	toAdd := make([]benchStruct2, b.N)
+	for index, _ := range toAdd {
+		toAdd[index] = benchStruct2{
+			Name: fmt.Sprintf("%v%v", rand.Int63(), rand.Int63()),
+		}
+	}
+	b.StartTimer()
+	for _, s := range toAdd {
+		benchdb.Set(&s)
+	}
+}
+
+func BenchmarkWriteIndex100(b *testing.B) {
+	b.StopTimer()
+	os.Remove("test.kct")
+	os.Remove("test.kct.wal")
+	benchWriteIndex(b, 100)
+}
+
+func BenchmarkWriteIndex1000(b *testing.B) {
+	b.StopTimer()
+	benchWriteIndex(b, 1000)
+}
+
+func BenchmarkWriteIndex10000(b *testing.B) {
+	b.StopTimer()
+	benchWriteIndex(b, 10000)
+}
+
+func BenchmarkWriteIndex100000(b *testing.B) {
+	b.StopTimer()
+	benchWriteIndex(b, 100000)
 }
 
 func TestCRUD(t *testing.T) {
