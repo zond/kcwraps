@@ -16,6 +16,7 @@ const (
 	idField    = "Id"
 )
 
+// NotFound means that the mentioned key did not exist.
 var NotFound = fmt.Errorf("Not found")
 
 func init() {
@@ -59,12 +60,14 @@ func identify(obj interface{}) (value, id reflect.Value, err error) {
 	return
 }
 
+// DB is a simple object layer on top of Kyoto Cabinet.
 type DB struct {
 	db                 kc.DB
 	subscriptionsMutex *sync.RWMutex
 	subscriptions      map[string]subscription
 }
 
+// New returns a new object layer with a database at the specified path.
 func New(path string) (result *DB, err error) {
 	var kcdb *kc.DB
 	if kcdb, err = kc.New(path); err != nil {
@@ -78,20 +81,24 @@ func New(path string) (result *DB, err error) {
 	return
 }
 
+// Count returns the number of elements in the underlying Kyoto cabinet.
 func (self *DB) Count() (uint64, error) {
 	return self.db.Count()
 }
 
+// Query will return a new Query on this database.
 func (self *DB) Query() *Query {
 	return &Query{
 		db: self,
 	}
 }
 
+// Clear will completely empty the underlying cabinet.
 func (self *DB) Clear() error {
 	return self.db.Clear()
 }
 
+// Close will close and sync the underlying cabinet to disk.
 func (self *DB) Close() error {
 	return self.db.Close()
 }
@@ -113,7 +120,7 @@ func (self *DB) trans(f func() error) (err error) {
 /*
 Del will delete the obj from the database.
 
-Obj must be a pointer to a struct having a string Id field.
+Obj must be a pointer to a struct having a []byte Id field.
 */
 func (self *DB) Del(obj interface{}) (err error) {
 	var value reflect.Value
@@ -150,7 +157,7 @@ func (self *DB) Del(obj interface{}) (err error) {
 /*
 Get will find the object with id in the database, and JSON decode it into result.
 
-Result must be a pointer to a struct having a string Id field.
+Result must be a pointer to a struct having a []byte Id field.
 */
 func (self *DB) Get(id []byte, result interface{}) error {
 	value, _, err := identify(result)
@@ -206,9 +213,11 @@ func (self *DB) update(id []byte, objValue reflect.Value, typ reflect.Type, old,
 /*
 Set will JSON encode obj and insert it into the database
 
-Obj must be a pointer to a struct having a string Id field.
+Obj must be a pointer to a struct having a []byte Id field.
 
-If the Id field is empty, a random Id will be set.
+If the Id field is empty, a random Id will be chosen.
+
+Any fields tagged `kol:"index"` will be indexed separately, and possible to search for using Query.
 */
 func (self *DB) Set(obj interface{}) error {
 	value, id, err := identify(obj)

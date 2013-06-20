@@ -14,6 +14,7 @@ type qFilter interface {
 	match(typ reflect.Type, value reflect.Value) (result bool, err error)
 }
 
+// Or defineds an OR operation.
 type Or []qFilter
 
 func (self Or) source(typ reflect.Type) (result setop.SetOpSource, err error) {
@@ -41,6 +42,7 @@ func (self Or) match(typ reflect.Type, value reflect.Value) (result bool, err er
 	return
 }
 
+// And defines an AND operation.
 type And []qFilter
 
 func (self And) source(typ reflect.Type) (result setop.SetOpSource, err error) {
@@ -69,6 +71,7 @@ func (self And) match(typ reflect.Type, value reflect.Value) (result bool, err e
 	return
 }
 
+// Equals defines an == operation.
 type Equals struct {
 	Field string
 	Value interface{}
@@ -101,6 +104,11 @@ func (self Equals) match(typ reflect.Type, value reflect.Value) (result bool, er
 	return
 }
 
+/*
+Query is a search operation using an SQL-like syntax to fetch records from the database.
+
+Example: db.Query().Filter(And{Equals{"Name", "John"}, Or{Equals{"Surname", "Doe"}, Equals{"Surname", "Smith"}}}).All(&result)
+*/
 type Query struct {
 	db           *DB
 	typ          reflect.Type
@@ -108,6 +116,13 @@ type Query struct {
 	difference   qFilter
 }
 
+/*
+Subscribe will run the subscriber function with all database updates matching this query.
+
+name is used to separate different subscriptions, and to unsubscribe.
+
+ops is the binary OR of the operations this subscription should follow.
+*/
 func (self *Query) Subscribe(name string, obj interface{}, ops Operation, subscriber Subscriber) (err error) {
 	var value reflect.Value
 	if value, _, err = identify(obj); err != nil {
@@ -190,16 +205,19 @@ func (self *Query) each(f func(elementPointer reflect.Value) bool) error {
 	return nil
 }
 
+// Except will add a filter whose matches will be removed from the results of this query.
 func (self *Query) Except(f qFilter) *Query {
 	self.difference = f
 	return self
 }
 
+// Filter will add an AND filter to this query.
 func (self *Query) Filter(f qFilter) *Query {
 	self.intersection = f
 	return self
 }
 
+// First will load the first match of this query into result.
 func (self *Query) First(result interface{}) (err error) {
 	var value reflect.Value
 	if value, _, err = identify(result); err != nil {
@@ -213,6 +231,7 @@ func (self *Query) First(result interface{}) (err error) {
 	return
 }
 
+// All will load all results of this quer into result.
 func (self *Query) All(result interface{}) (err error) {
 	slicePtrValue := reflect.ValueOf(result)
 	if slicePtrValue.Kind() != reflect.Ptr {
