@@ -64,18 +64,35 @@ func (self *DB) Subscribe(name string, obj interface{}, ops Operation, subscribe
 	return
 }
 
-func (self *DB) emit(typ reflect.Type, value reflect.Value, op Operation) {
+func (self *DB) emit(typ reflect.Type, oldValue, newValue *reflect.Value) {
 	self.subscriptionsMutex.RLock()
 	defer self.subscriptionsMutex.RUnlock()
 	for _, subscription := range self.subscriptions {
-		if subscription.ops&op != 0 {
-			if result, err := subscription.matcher(typ, value); err != nil {
+		oldMatch := false
+		newMatch := false
+		var err error
+		if oldValue != nil {
+			if oldMatch, err = subscription.matcher(typ, *oldValue); err != nil {
 				panic(err)
-			} else if result {
-				cpy := reflect.New(typ)
-				cpy.Elem().Set(value)
-				go subscription.subscriber(cpy.Interface(), op)
 			}
+		}
+		if newValue != nil {
+			if newMatch, err = subscription.matcher(typ, *newValue); err != nil {
+				panic(err)
+			}
+		}
+		if oldMatch && newMatch {
+			cpy := reflect.New(typ)
+			cpy.Elem().Set(*newValue)
+			go subscription.subscriber(cpy.Interface(), Update)
+		} else if oldMatch {
+			cpy := reflect.New(typ)
+			cpy.Elem().Set(*oldValue)
+			go subscription.subscriber(cpy.Interface(), Delete)
+		} else if newMatch {
+			cpy := reflect.New(typ)
+			cpy.Elem().Set(*newValue)
+			go subscription.subscriber(cpy.Interface(), Create)
 		}
 	}
 }

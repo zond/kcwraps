@@ -149,7 +149,7 @@ func (self *DB) Del(obj interface{}) (err error) {
 		}
 		return nil
 	}); err == nil {
-		self.emit(typ, value, Delete)
+		self.emit(typ, &value, nil)
 	}
 	return
 }
@@ -195,13 +195,13 @@ func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj int
 		if err := self.trans(creator); err != nil {
 			return err
 		}
-		self.emit(typ, value, Create)
+		self.emit(typ, nil, &value)
 		return nil
 	}
 }
 
-func (self *DB) update(id []byte, objValue reflect.Value, typ reflect.Type, old, obj interface{}) error {
-	if err := self.deIndex(id, reflect.ValueOf(old).Elem(), typ); err != nil {
+func (self *DB) update(id []byte, oldValue, objValue reflect.Value, typ reflect.Type, obj interface{}) error {
+	if err := self.deIndex(id, oldValue, typ); err != nil {
 		return err
 	}
 	if err := self.index(id, objValue, typ); err != nil {
@@ -231,22 +231,22 @@ func (self *DB) Set(obj interface{}) error {
 	} else {
 		typ := value.Type()
 		old := reflect.New(typ).Interface()
-		var op Operation
+		var oldValuePtr *reflect.Value
 		if err := self.trans(func() error {
 			if err := self.Get(idBytes, old); err == nil {
-				op = Update
-				return self.update(idBytes, value, typ, old, obj)
+				oldValue := reflect.ValueOf(old).Elem()
+				oldValuePtr = &oldValue
+				return self.update(idBytes, oldValue, value, typ, obj)
 			} else {
 				if err != NotFound {
 					return err
 				}
-				op = Create
 				return self.create(idBytes, value, value.Type(), obj, true)
 			}
 		}); err != nil {
 			return err
 		} else {
-			self.emit(typ, value, op)
+			self.emit(typ, oldValuePtr, &value)
 			return nil
 		}
 	}
