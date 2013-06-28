@@ -29,6 +29,15 @@ type subscription struct {
 }
 
 /*
+Unsubscribe will remove a subscription.
+*/
+func (self *DB) Unsubscribe(name string) {
+	self.subscriptionsMutex.Lock()
+	defer self.subscriptionsMutex.Unlock()
+	delete(self.subscriptions, name)
+}
+
+/*
 Subscribe will add a subscription to all updates of a given object in the database.
 
 name is used to separate different subscriptions, and to unsubscribe.
