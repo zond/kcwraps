@@ -2,10 +2,23 @@ package kol
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 )
 
 type Operation int
+
+func (self Operation) String() string {
+	switch self {
+	case Create:
+		return "Create"
+	case Update:
+		return "Update"
+	case Delete:
+		return "Delete"
+	}
+	panic(fmt.Errorf("Unknown Operation: %v", self))
+}
 
 const (
 	Create Operation = 1 << iota
