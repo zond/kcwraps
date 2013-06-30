@@ -155,15 +155,19 @@ func (self *DB) Del(obj interface{}) (err error) {
 }
 
 /*
-Get will find the object with id in the database, and JSON decode it into result.
+Get will find the object from the database, and JSON decode it into result.
 
-Result must be a pointer to a struct having a []byte Id field.
+Obj must be a pointer to a struct having a []byte Id field.
 */
-func (self *DB) Get(id []byte, result interface{}) error {
-	value, _, err := identify(result)
+func (self *DB) Get(obj interface{}) error {
+	value, id, err := identify(obj)
 	if err != nil {
 		return err
 	}
+	return self.get(id.Bytes(), value, obj)
+}
+
+func (self *DB) get(id []byte, value reflect.Value, obj interface{}) error {
 	b, err := self.db.Get(kc.Keyify(primaryKey, value.Type().Name(), id))
 	if err != nil {
 		if err.Error() == "no record" {
@@ -171,7 +175,7 @@ func (self *DB) Get(id []byte, result interface{}) error {
 		}
 		return err
 	}
-	return json.Unmarshal(b, result)
+	return json.Unmarshal(b, obj)
 }
 
 func (self *DB) save(id []byte, typ reflect.Type, obj interface{}) error {
@@ -231,10 +235,10 @@ func (self *DB) Set(obj interface{}) error {
 	} else {
 		typ := value.Type()
 		old := reflect.New(typ).Interface()
+		oldValue := reflect.ValueOf(old).Elem()
 		var oldValuePtr *reflect.Value
 		if err := self.trans(func() error {
-			if err := self.Get(idBytes, old); err == nil {
-				oldValue := reflect.ValueOf(old).Elem()
+			if err := self.get(idBytes, oldValue, old); err == nil {
 				oldValuePtr = &oldValue
 				return self.update(idBytes, oldValue, value, typ, obj)
 			} else {

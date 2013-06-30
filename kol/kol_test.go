@@ -147,8 +147,8 @@ func TestCRUD(t *testing.T) {
 	if hehu.Id == nil {
 		t.Errorf("Did not create id")
 	}
-	hehu2 := testStruct{}
-	if err := d.Get(hehu.Id, &hehu2); err != nil {
+	hehu2 := testStruct{Id: hehu.Id}
+	if err := d.Get(&hehu2); err != nil {
 		t.Errorf(err.Error())
 	}
 	if !reflect.DeepEqual(hehu, hehu2) {
@@ -161,8 +161,8 @@ func TestCRUD(t *testing.T) {
 	if bytes.Compare(hehu2.Id, hehu.Id) != 0 {
 		t.Errorf("Changed id")
 	}
-	hehu3 := testStruct{}
-	if err := d.Get(hehu.Id, &hehu3); err != nil {
+	hehu3 := testStruct{Id: hehu.Id}
+	if err := d.Get(&hehu3); err != nil {
 		t.Errorf(err.Error())
 	}
 	if !reflect.DeepEqual(hehu2, hehu3) {
@@ -174,8 +174,8 @@ func TestCRUD(t *testing.T) {
 	if err := d.Del(&hehu); err != nil {
 		t.Errorf(err.Error())
 	}
-	hehu4 := testStruct{}
-	if err := d.Get(hehu.Id, &hehu4); err != NotFound {
+	hehu4 := testStruct{Id: hehu.Id}
+	if err := d.Get(&hehu4); err != NotFound {
 		t.Errorf(err.Error())
 	}
 }
