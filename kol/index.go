@@ -23,6 +23,19 @@ func indexBytes(typ reflect.Type, value reflect.Value) (b []byte, err error) {
 			return
 		}
 		b = buf.Bytes()
+	case reflect.Slice:
+		switch typ.Elem().Kind() {
+		case reflect.Uint8:
+			b = value.Bytes()
+		default:
+			err = fmt.Errorf("%v is not an indexable type", typ)
+		}
+	case reflect.Bool:
+		if value.Bool() {
+			b = []byte{1}
+		} else {
+			b = []byte{0}
+		}
 	default:
 		err = fmt.Errorf("%v is not an indexable type", typ)
 	}
