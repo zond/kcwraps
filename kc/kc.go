@@ -5,6 +5,10 @@ import (
 	"fmt"
 )
 
+const (
+	NoRecord = "no record"
+)
+
 func escape(bs []byte) (result []byte) {
 	for index := 0; index < len(bs); index++ {
 		if bs[index] == 0 {

@@ -93,7 +93,7 @@ func (self *DB) each(keys [][]byte, f func(keys [][]byte, value []byte)) {
 	cursor := self.KCDB.Cursor()
 	var err error
 	if err = cursor.JumpKey(joined); err != nil {
-		if err.Error() == "no record" {
+		if err.Error() == NoRecord {
 			return
 		}
 		panic(err)
@@ -101,14 +101,14 @@ func (self *DB) each(keys [][]byte, f func(keys [][]byte, value []byte)) {
 	for {
 		key, value, err := cursor.Get(true)
 		if err != nil {
-			if err.Error() == "no record" {
+			if err.Error() == NoRecord {
 				return
 			}
 			panic(err)
 		}
 		if len(key) > len(joined) && bytes.Compare(joined, key[:len(joined)]) == 0 {
 			splitKey := SplitKeys(key)
-			if len(splitKey) == len(keys)+1 {
+			if len(splitKey) > len(keys) {
 				f(splitKey, value)
 			}
 		} else {
@@ -116,7 +116,7 @@ func (self *DB) each(keys [][]byte, f func(keys [][]byte, value []byte)) {
 		}
 	}
 	if err != nil {
-		if err.Error() == "no record" {
+		if err.Error() == NoRecord {
 			return
 		}
 		panic(err)

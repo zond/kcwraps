@@ -212,11 +212,29 @@ func TestMultiLevelCollection(t *testing.T) {
 	d.Set(Keyify("a", "b", "e"), []byte("f"))
 	d.Set(Keyify("a", "c", "f"), []byte("g"))
 	coll := d.GetCollection(Keyify("a"))
-	if len(coll) != 0 {
-		t.Fatalf("wanted empty result, got %v", coll)
+	wanted := []KV{
+		KV{
+			Keys:  Keyify("a", "b", "c"),
+			Value: []byte("d"),
+		},
+		KV{
+			Keys:  Keyify("a", "b", "d"),
+			Value: []byte("e"),
+		},
+		KV{
+			Keys:  Keyify("a", "b", "e"),
+			Value: []byte("f"),
+		},
+		KV{
+			Keys:  Keyify("a", "c", "f"),
+			Value: []byte("g"),
+		},
+	}
+	if !reflect.DeepEqual(coll, wanted) {
+		t.Fatalf("%#v != %v", coll, wanted)
 	}
 	coll = d.GetCollection(Keyify("a", "c"))
-	wanted := []KV{
+	wanted = []KV{
 		KV{
 			Keys:  Keyify("a", "c", "f"),
 			Value: []byte("g"),
@@ -289,6 +307,37 @@ func TestSetOps2(t *testing.T) {
 		KV{
 			Keys:  Keyify("c"),
 			Value: []byte("cef"),
+		},
+	}
+	if !reflect.DeepEqual(found, wanted) {
+		t.Errorf("%+v != %+v", found, wanted)
+	}
+}
+
+func TestSetOps3(t *testing.T) {
+	d, err := New("test")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer d.Close()
+	d.Clear()
+	d.Set(Keyify("a", "b", "a"), []byte("c"))
+	d.Set(Keyify("a", "b", "b"), []byte("c"))
+	d.Set(Keyify("a", "c", "c"), []byte("c"))
+	d.Set(Keyify("a", "e", "f"), []byte("c"))
+	d.Set(Keyify("b", "c", "c"), []byte("e"))
+	d.Set(Keyify("b", "d", "c"), []byte("f"))
+	d.Set(Keyify("b", "d", "d"), []byte("f"))
+	d.Set(Keyify("b", "e", "f"), []byte("f"))
+	found := d.SetOpString("(I:ConCat a b)")
+	wanted := []KV{
+		KV{
+			Keys:  Keyify("c"),
+			Value: []byte("ce"),
+		},
+		KV{
+			Keys:  Keyify("e"),
+			Value: []byte("cf"),
 		},
 	}
 	if !reflect.DeepEqual(found, wanted) {
