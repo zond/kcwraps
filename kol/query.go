@@ -72,6 +72,9 @@ func (self And) match(db *DB, typ reflect.Type, value reflect.Value) (result boo
 }
 
 // Join is a qFilter that defines a relationship to another type.
+// It will match all instances connected to something looking like
+// Match (specifically the bit identified by MatchField) having an
+// Id equal to the value of the IdField of the returned instance.
 type Join struct {
 	Match      interface{}
 	MatchField string
