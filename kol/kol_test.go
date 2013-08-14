@@ -11,9 +11,11 @@ import (
 )
 
 type testStruct struct {
-	Id   []byte
-	Name string `kol:"index"`
-	Age  int    `kol:"index"`
+	Id    []byte
+	Name  string `kol:"index"`
+	Age   int    `kol:"index"`
+	Email string
+	Dad   []byte `kol:"fk<Email>"`
 }
 
 var benchdb *DB
@@ -205,63 +207,63 @@ func TestQuery(t *testing.T) {
 		t.Errorf("Wanted %v but got %v", wanted, res)
 	}
 	res = nil
-	if err := d.Query().Filter(Equals{"Name", "hehu"}).All(&res); err != nil {
+	if err := d.Query().Where(Equals{"Name", "hehu"}).All(&res); err != nil {
 		t.Errorf(err.Error())
 	}
 	if !reflect.DeepEqual(res, wanted) {
 		t.Errorf("Wanted %v but got %v", wanted, res)
 	}
 	res = nil
-	if err := d.Query().Filter(Equals{"Name", "blapp"}).All(&res); err != nil {
+	if err := d.Query().Where(Equals{"Name", "blapp"}).All(&res); err != nil {
 		t.Errorf(err.Error())
 	}
 	if len(res) != 0 {
 		t.Errorf("Wanted [] but got %v", res)
 	}
 	res = nil
-	if err := d.Query().Filter(And{Equals{"Name", "hehu"}, Equals{"Age", 12}}).All(&res); err != nil {
+	if err := d.Query().Where(And{Equals{"Name", "hehu"}, Equals{"Age", 12}}).All(&res); err != nil {
 		t.Errorf(err.Error())
 	}
 	if !reflect.DeepEqual(res, wanted) {
 		t.Errorf("Wanted %v but got %v", wanted, res)
 	}
 	res = nil
-	if err := d.Query().Filter(And{Equals{"Name", "blapp"}, Equals{"Age", 11}}).All(&res); err != nil {
+	if err := d.Query().Where(And{Equals{"Name", "blapp"}, Equals{"Age", 11}}).All(&res); err != nil {
 		t.Errorf(err.Error())
 	}
 	if len(res) != 0 {
 		t.Errorf("Wanted [] but got %v", res)
 	}
 	res = nil
-	if err := d.Query().Filter(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 12}, Equals{"Age", 11}}}).All(&res); err != nil {
+	if err := d.Query().Where(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 12}, Equals{"Age", 11}}}).All(&res); err != nil {
 		t.Errorf(err.Error())
 	}
 	if !reflect.DeepEqual(res, wanted) {
 		t.Errorf("Wanted %v but got %v", wanted, res)
 	}
 	res = nil
-	if err := d.Query().Filter(And{Equals{"Name", "blapp"}, Or{Equals{"Age", 11}, Equals{"Age", 13}}}).All(&res); err != nil {
+	if err := d.Query().Where(And{Equals{"Name", "blapp"}, Or{Equals{"Age", 11}, Equals{"Age", 13}}}).All(&res); err != nil {
 		t.Errorf(err.Error())
 	}
 	if len(res) != 0 {
 		t.Errorf("Wanted [] but got %v", res)
 	}
 	res = nil
-	if err := d.Query().Filter(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 12}, Equals{"Age", 11}}}).Except(Equals{"Name", "blapp"}).All(&res); err != nil {
+	if err := d.Query().Where(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 12}, Equals{"Age", 11}}}).Except(Equals{"Name", "blapp"}).All(&res); err != nil {
 		t.Errorf(err.Error())
 	}
 	if !reflect.DeepEqual(res, wanted) {
 		t.Errorf("Wanted %v but got %v", wanted, res)
 	}
 	res = nil
-	if err := d.Query().Filter(And{Equals{"Name", "blapp"}, Or{Equals{"Age", 11}, Equals{"Age", 13}}}).Except(Equals{"Name", "hehu"}).All(&res); err != nil {
+	if err := d.Query().Where(And{Equals{"Name", "blapp"}, Or{Equals{"Age", 11}, Equals{"Age", 13}}}).Except(Equals{"Name", "hehu"}).All(&res); err != nil {
 		t.Errorf(err.Error())
 	}
 	if len(res) != 0 {
 		t.Errorf("Wanted [] but got %v", res)
 	}
 	var res2 testStruct
-	if err := d.Query().Filter(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 11}, Equals{"Age", 12}}}).Except(Equals{"Name", "blapp"}).First(&res2); err != nil {
+	if found, err := d.Query().Where(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 11}, Equals{"Age", 12}}}).Except(Equals{"Name", "blapp"}).First(&res2); err != nil || !found {
 		t.Errorf(err.Error())
 	}
 	if !reflect.DeepEqual(hehu, res2) {
@@ -363,7 +365,7 @@ func TestQuerySubscribe(t *testing.T) {
 	}
 	done := make(chan bool)
 	hehu := testStruct{}
-	if err := d.Query().Filter(Equals{"Name", "qname"}).Subscribe("subtest1", &hehu, AllOps, func(obj interface{}, op Operation) {
+	if err := d.Query().Where(Equals{"Name", "qname"}).Subscribe("subtest1", &hehu, AllOps, func(obj interface{}, op Operation) {
 		switch op {
 		case Delete:
 			removed = append(removed, obj.(*testStruct))
@@ -401,4 +403,79 @@ func TestQuerySubscribe(t *testing.T) {
 	}
 	time.Sleep(time.Millisecond * 100)
 	assertEvents([]*testStruct{&hehu2}, []*testStruct{&hehu}, []*testStruct{&hehu2})
+}
+
+func TestJoin(t *testing.T) {
+	d, err := New("test")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	d.Clear()
+	defer d.Close()
+	dad := testStruct{
+		Name: "dad",
+		Age:  40,
+	}
+	if err := d.Set(&dad); err != nil {
+		t.Fatalf(err.Error())
+	}
+	son := testStruct{
+		Name:  "son",
+		Age:   12,
+		Email: "email",
+		Dad:   dad.Id,
+	}
+	if err := d.Set(&son); err != nil {
+		t.Fatalf(err.Error())
+	}
+	notdad := testStruct{
+		Name: "notdad",
+		Age:  41,
+	}
+	if err := d.Set(&notdad); err != nil {
+		t.Fatalf(err.Error())
+	}
+	var res []testStruct
+	if err := d.Query().Where(Join{&testStruct{Email: "email"}, "Email", "Dad"}).All(&res); err != nil {
+		t.Errorf(err.Error())
+	}
+	if len(res) != 1 || bytes.Compare(res[0].Id, dad.Id) != 0 {
+		t.Errorf("wanted %+v, got %+v", dad, res)
+	}
+	otherson := testStruct{
+		Name:  "otherson",
+		Age:   14,
+		Email: "email",
+		Dad:   dad.Id,
+	}
+	if err := d.Set(&otherson); err != nil {
+		t.Fatalf(err.Error())
+	}
+	res = nil
+	if err := d.Query().Where(Join{&testStruct{Email: "email"}, "Email", "Dad"}).All(&res); err != nil {
+		t.Errorf(err.Error())
+	}
+	if len(res) != 1 || bytes.Compare(res[0].Id, dad.Id) != 0 {
+		t.Errorf("wanted %+v, got %+v", dad, res)
+	}
+	if err := d.Del(&son); err != nil {
+		t.Fatalf(err.Error())
+	}
+	res = nil
+	if err := d.Query().Where(Join{&testStruct{Email: "email"}, "Email", "Dad"}).All(&res); err != nil {
+		t.Errorf(err.Error())
+	}
+	if len(res) != 1 || bytes.Compare(res[0].Id, dad.Id) != 0 {
+		t.Errorf("wanted %+v, got %+v", dad, res)
+	}
+	if err := d.Del(&otherson); err != nil {
+		t.Fatalf(err.Error())
+	}
+	res = nil
+	if err := d.Query().Where(Join{&testStruct{Email: "email"}, "Email", "Dad"}).All(&res); err != nil {
+		t.Errorf(err.Error())
+	}
+	if len(res) != 0 {
+		t.Errorf("wanted %+v, got %+v", nil, res)
+	}
 }

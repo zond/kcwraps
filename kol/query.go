@@ -11,7 +11,7 @@ import (
 
 type qFilter interface {
 	source(typ reflect.Type) (result setop.SetOpSource, err error)
-	match(typ reflect.Type, value reflect.Value) (result bool, err error)
+	match(db *DB, typ reflect.Type, value reflect.Value) (result bool, err error)
 }
 
 // Or is a qFilter that defineds an OR operation.
@@ -33,9 +33,9 @@ func (self Or) source(typ reflect.Type) (result setop.SetOpSource, err error) {
 	return
 }
 
-func (self Or) match(typ reflect.Type, value reflect.Value) (result bool, err error) {
+func (self Or) match(db *DB, typ reflect.Type, value reflect.Value) (result bool, err error) {
 	for _, filter := range self {
-		if result, err = filter.match(typ, value); err != nil || result {
+		if result, err = filter.match(db, typ, value); err != nil || result {
 			return
 		}
 	}
@@ -61,13 +61,67 @@ func (self And) source(typ reflect.Type) (result setop.SetOpSource, err error) {
 	return
 }
 
-func (self And) match(typ reflect.Type, value reflect.Value) (result bool, err error) {
+func (self And) match(db *DB, typ reflect.Type, value reflect.Value) (result bool, err error) {
 	result, err = true, nil
 	for _, filter := range self {
-		if result, err = filter.match(typ, value); err != nil || !result {
+		if result, err = filter.match(db, typ, value); err != nil || !result {
 			return
 		}
 	}
+	return
+}
+
+// Join is a qFilter that defines a relationship to another type.
+type Join struct {
+	Match      interface{}
+	MatchField string
+	IdField    string
+}
+
+func (self Join) source(typ reflect.Type) (result setop.SetOpSource, err error) {
+	var value reflect.Value
+	if value, _, err = identify(self.Match); err != nil {
+		return
+	}
+	field := value.FieldByName(self.MatchField)
+	if !field.IsValid() {
+		err = fmt.Errorf("%v does not have a field named %v", value, self.MatchField)
+		return
+	}
+	var b []byte
+	if b, err = indexBytes(field.Type(), field); err != nil {
+		return
+	}
+	result = setop.SetOpSource{
+		Key: kc.JoinKeys([][]byte{[]byte(foreignIndex), []byte(value.Type().Name()), []byte(self.MatchField), []byte(self.IdField), b}),
+	}
+	return
+}
+
+func (self Join) match(db *DB, typ reflect.Type, value reflect.Value) (result bool, err error) {
+	var matchValue reflect.Value
+	if matchValue, _, err = identify(self.Match); err != nil {
+		return
+	}
+	matchField := matchValue.FieldByName(self.MatchField)
+	if !matchField.IsValid() {
+		err = fmt.Errorf("%v does not have a field named %v", matchValue, self.MatchField)
+		return
+	}
+	var matchBytes []byte
+	if matchBytes, err = indexBytes(matchField.Type(), matchField); err != nil {
+		return
+	}
+	result, err = db.Query().Where(And{
+		Equals{
+			self.MatchField,
+			matchBytes,
+		},
+		Equals{
+			self.IdField,
+			value.FieldByName(idField).Bytes(),
+		},
+	}).First(reflect.New(typ))
 	return
 }
 
@@ -89,7 +143,7 @@ func (self Equals) source(typ reflect.Type) (result setop.SetOpSource, err error
 	return
 }
 
-func (self Equals) match(typ reflect.Type, value reflect.Value) (result bool, err error) {
+func (self Equals) match(db *DB, typ reflect.Type, value reflect.Value) (result bool, err error) {
 	selfValue := reflect.ValueOf(self.Value)
 	bothType := selfValue.Type()
 	var selfBytes []byte
@@ -145,12 +199,12 @@ func (self *Query) match(typ reflect.Type, value reflect.Value) (result bool, er
 		return
 	}
 	if self.intersection != nil {
-		if result, err = self.intersection.match(typ, value); err != nil || !result {
+		if result, err = self.intersection.match(self.db, typ, value); err != nil || !result {
 			return
 		}
 	}
 	if self.difference != nil {
-		if result, err = self.difference.match(typ, value); err != nil || result {
+		if result, err = self.difference.match(self.db, typ, value); err != nil || result {
 			result = true
 			return
 		}
@@ -205,20 +259,20 @@ func (self *Query) each(f func(elementPointer reflect.Value) bool) error {
 	return nil
 }
 
-// Except will add a filter whose matches will be removed from the results of this query.
+// Except will add a filter excluding matching items from the results of this query.
 func (self *Query) Except(f qFilter) *Query {
 	self.difference = f
 	return self
 }
 
-// Filter will add an AND filter to this query.
-func (self *Query) Filter(f qFilter) *Query {
+// Where will add a filter limiting the results of this query to matching items.
+func (self *Query) Where(f qFilter) *Query {
 	self.intersection = f
 	return self
 }
 
 // First will load the first match of this query into result.
-func (self *Query) First(result interface{}) (err error) {
+func (self *Query) First(result interface{}) (found bool, err error) {
 	var value reflect.Value
 	if value, _, err = identify(result); err != nil {
 		return
@@ -226,6 +280,7 @@ func (self *Query) First(result interface{}) (err error) {
 	self.typ = value.Type()
 	err = self.each(func(elementPointer reflect.Value) bool {
 		value.Set(elementPointer.Elem())
+		found = true
 		return true
 	})
 	return

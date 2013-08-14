@@ -138,11 +138,11 @@ func (self *DB) Del(obj interface{}) (err error) {
 			if err := self.deIndex(id.Bytes(), value, typ); err != nil {
 				return err
 			}
-		} else if err.Error() != "no record" {
+		} else if err.Error() != kc.NoRecord {
 			return err
 		}
 		if err := self.db.Remove(kc.Keyify(primaryKey, typ.Name(), id.Bytes())); err != nil {
-			if err.Error() == "no record" {
+			if err.Error() == kc.NoRecord {
 				err = NotFound
 			}
 			return err
@@ -170,7 +170,7 @@ func (self *DB) Get(obj interface{}) error {
 func (self *DB) get(id []byte, value reflect.Value, obj interface{}) error {
 	b, err := self.db.Get(kc.Keyify(primaryKey, value.Type().Name(), id))
 	if err != nil {
-		if err.Error() == "no record" {
+		if err.Error() == kc.NoRecord {
 			err = NotFound
 		}
 		return err
