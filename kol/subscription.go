@@ -86,7 +86,25 @@ func (self *DB) Subscribe(name string, obj interface{}, ops Operation, subscribe
 	return
 }
 
+func (self *DB) EmitUpdate(obj interface{}) {
+	value := reflect.ValueOf(obj).Elem()
+	self.emit(reflect.TypeOf(value.Interface()), &value, &value)
+}
+
 func (self *DB) emit(typ reflect.Type, oldValue, newValue *reflect.Value) {
+	if oldValue != nil && newValue != nil {
+		if chain := newValue.Addr().MethodByName("Updated"); chain.IsValid() {
+			chain.Call([]reflect.Value{reflect.ValueOf(self), oldValue.Addr()})
+		}
+	} else if newValue != nil {
+		if chain := newValue.Addr().MethodByName("Created"); chain.IsValid() {
+			chain.Call([]reflect.Value{reflect.ValueOf(self)})
+		}
+	} else if oldValue != nil {
+		if chain := oldValue.Addr().MethodByName("Deleted"); chain.IsValid() {
+			chain.Call([]reflect.Value{reflect.ValueOf(self)})
+		}
+	}
 	self.subscriptionsMutex.RLock()
 	defer self.subscriptionsMutex.RUnlock()
 	for _, subscription := range self.subscriptions {
