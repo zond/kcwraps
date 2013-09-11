@@ -67,7 +67,8 @@ DB includes http://godoc.org/bitbucket.org/ww/cabinet#KCDB and adds a few more c
 All functions that process keys have been overridden to use the multi level key scheme.
 */
 type DB struct {
-	cabinet.KCDB
+	*cabinet.KCDB
+	inTransaction bool
 }
 
 /*
@@ -80,7 +81,39 @@ func New(path string) (result *DB, err error) {
 		return
 	}
 	result = &DB{
-		KCDB: *kcdb,
+		KCDB: kcdb,
+	}
+	return
+}
+
+/*
+Transact will execute f, with d being a *DB executing within a transactional context.
+
+If self is already in a transactional context, no further transacting will take place,
+f will just execute within the same transaction.
+*/
+func (self DB) Transact(f func(d *DB) error) (err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			self.EndTran(false)
+			panic(e)
+		}
+	}()
+	if self.inTransaction {
+		if err = f(&self); err != nil {
+			self.EndTran(false)
+		}
+	} else {
+		if err = self.BeginTran(false); err == nil {
+			self.inTransaction = true
+			if err = f(&self); err == nil {
+				if err = self.EndTran(true); err != nil {
+					self.EndTran(false)
+				}
+			} else {
+				self.EndTran(false)
+			}
+		}
 	}
 	return
 }

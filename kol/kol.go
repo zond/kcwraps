@@ -62,7 +62,7 @@ func identify(obj interface{}) (value, id reflect.Value, err error) {
 
 // DB is a simple object layer on top of Kyoto Cabinet.
 type DB struct {
-	db                 kc.DB
+	db                 *kc.DB
 	subscriptionsMutex *sync.RWMutex
 	subscriptions      map[string]subscription
 }
@@ -74,7 +74,7 @@ func New(path string) (result *DB, err error) {
 		return
 	}
 	result = &DB{
-		db:                 *kcdb,
+		db:                 kcdb,
 		subscriptionsMutex: new(sync.RWMutex),
 		subscriptions:      make(map[string]subscription),
 	}
@@ -103,18 +103,17 @@ func (self *DB) Close() error {
 	return self.db.Close()
 }
 
-func (self *DB) trans(f func() error) (err error) {
-	if err = self.db.BeginTran(false); err != nil {
-		return
-	}
-	if err = f(); err != nil {
-		self.db.EndTran(false)
-		return err
-	}
-	if err = self.db.EndTran(true); err != nil {
-		return self.db.EndTran(false)
-	}
-	return
+/*
+Transact will execute f, with d being a *DB executing within a transactional context.
+
+If self is already in a transactional context, no further transacting will take place,
+f will just execute within the same transaction.
+*/
+func (self DB) Transact(f func(d *DB) error) (err error) {
+	return self.db.Transact(func(d *kc.DB) error {
+		self.db = d
+		return f(&self)
+	})
 }
 
 /*
@@ -129,7 +128,7 @@ func (self *DB) Del(obj interface{}) (err error) {
 		return
 	}
 	typ := value.Type()
-	if err = self.trans(func() error {
+	if err = self.Transact(func(self *DB) error {
 		b, err := self.db.Get(kc.Keyify(primaryKey, typ.Name(), id.Bytes()))
 		if err == nil {
 			if err := json.Unmarshal(b, obj); err != nil {
@@ -186,32 +185,33 @@ func (self *DB) save(id []byte, typ reflect.Type, obj interface{}) error {
 	return self.db.Set(kc.Keyify(primaryKey, typ.Name(), id), bytes)
 }
 
-func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj interface{}, inTrans bool) error {
-	creator := func() error {
+func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj interface{}) error {
+	if err := self.Transact(func(self *DB) error {
 		if err := self.index(id, value, typ); err != nil {
 			return err
 		}
 		return self.save(id, typ, obj)
+	}); err != nil {
+		return err
 	}
-	if inTrans {
-		return creator()
-	} else {
-		if err := self.trans(creator); err != nil {
-			return err
-		}
-		self.emit(typ, nil, &value)
-		return nil
-	}
+	self.emit(typ, nil, &value)
+	return nil
 }
 
 func (self *DB) update(id []byte, oldValue, objValue reflect.Value, typ reflect.Type, obj interface{}) error {
-	if err := self.deIndex(id, oldValue, typ); err != nil {
+	if err := self.Transact(func(self *DB) error {
+		if err := self.deIndex(id, oldValue, typ); err != nil {
+			return err
+		}
+		if err := self.index(id, objValue, typ); err != nil {
+			return err
+		}
+		return self.save(id, typ, obj)
+	}); err != nil {
 		return err
 	}
-	if err := self.index(id, objValue, typ); err != nil {
-		return err
-	}
-	return self.save(id, typ, obj)
+	self.emit(typ, &oldValue, &objValue)
+	return nil
 }
 
 /*
@@ -231,13 +231,13 @@ func (self *DB) Set(obj interface{}) error {
 	if idBytes := id.Bytes(); idBytes == nil {
 		idBytes = randomBytes()
 		id.SetBytes(idBytes)
-		return self.create(idBytes, value, value.Type(), obj, false)
+		return self.create(idBytes, value, value.Type(), obj)
 	} else {
 		typ := value.Type()
 		old := reflect.New(typ).Interface()
 		oldValue := reflect.ValueOf(old).Elem()
 		var oldValuePtr *reflect.Value
-		if err := self.trans(func() error {
+		if err := self.Transact(func(self *DB) error {
 			if err := self.get(idBytes, oldValue, old); err == nil {
 				oldValuePtr = &oldValue
 				return self.update(idBytes, oldValue, value, typ, obj)
@@ -245,12 +245,11 @@ func (self *DB) Set(obj interface{}) error {
 				if err != NotFound {
 					return err
 				}
-				return self.create(idBytes, value, value.Type(), obj, true)
+				return self.create(idBytes, value, value.Type(), obj)
 			}
 		}); err != nil {
 			return err
 		} else {
-			self.emit(typ, oldValuePtr, &value)
 			return nil
 		}
 	}

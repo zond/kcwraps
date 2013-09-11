@@ -120,7 +120,7 @@ func (self *DB) MatchRegex(regex string, max int) (matches [][][]byte, err error
 func (self *DB) Merge(dbs []*DB, mode int) (err error) {
 	sdbs := make([]*cabinet.KCDB, len(dbs))
 	for index, db := range dbs {
-		sdbs[index] = &db.KCDB
+		sdbs[index] = db.KCDB
 	}
 	return self.KCDB.Merge(sdbs, mode)
 }

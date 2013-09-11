@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"os"
 	"reflect"
+	"runtime/debug"
+	"strings"
 	"testing"
 	"time"
 )
@@ -16,6 +18,10 @@ type testStruct struct {
 	Age   int    `kol:"index"`
 	Email string
 	Dad   []byte `kol:"fk<Email>"`
+}
+
+func (self *testStruct) String() string {
+	return fmt.Sprintf("%+v", *self)
 }
 
 var benchdb *DB
@@ -289,14 +295,15 @@ func TestIdSubscribe(t *testing.T) {
 	var created []*testStruct
 	var updated []*testStruct
 	var assertEvents = func(rem, cre, upd []*testStruct) {
+		where := strings.Split(string(debug.Stack()), "\n")[2]
 		if !reflect.DeepEqual(rem, removed) {
-			t.Errorf("Wanted %v to have been deleted, but got %v", rem, removed)
+			t.Errorf("%v: Wanted %v to have been deleted, but got %v", where, rem, removed)
 		}
 		if !reflect.DeepEqual(cre, created) {
-			t.Errorf("Wanted %v to have been created, but got %v", cre, created)
+			t.Errorf("%v: Wanted %v to have been created, but got %v", where, cre, created)
 		}
 		if !reflect.DeepEqual(upd, updated) {
-			t.Errorf("Wanted %v to have been updated, but got %v", upd, updated)
+			t.Errorf("%v: Wanted %v to have been updated, but got %v", where, upd, updated)
 		}
 	}
 	done := make(chan bool)
