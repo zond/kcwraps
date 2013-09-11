@@ -106,7 +106,7 @@ func (self *DB) Close() error {
 /*
 Transact will execute f, with d being a *DB executing within a transactional context.
 
-If self is already in a transactional context, no further transacting will take place,
+If self is already in a transactional context, no new transaction will be created,
 f will just execute within the same transaction.
 */
 func (self DB) Transact(f func(d *DB) error) (err error) {
@@ -237,7 +237,7 @@ func (self *DB) Set(obj interface{}) error {
 		old := reflect.New(typ).Interface()
 		oldValue := reflect.ValueOf(old).Elem()
 		var oldValuePtr *reflect.Value
-		if err := self.Transact(func(self *DB) error {
+		return self.Transact(func(self *DB) error {
 			if err := self.get(idBytes, oldValue, old); err == nil {
 				oldValuePtr = &oldValue
 				return self.update(idBytes, oldValue, value, typ, obj)
@@ -247,10 +247,6 @@ func (self *DB) Set(obj interface{}) error {
 				}
 				return self.create(idBytes, value, value.Type(), obj)
 			}
-		}); err != nil {
-			return err
-		} else {
-			return nil
-		}
+		})
 	}
 }

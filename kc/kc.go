@@ -89,7 +89,7 @@ func New(path string) (result *DB, err error) {
 /*
 Transact will execute f, with d being a *DB executing within a transactional context.
 
-If self is already in a transactional context, no further transacting will take place,
+If self is already in a transactional context, no new transaction will be created,
 f will just execute within the same transaction.
 */
 func (self DB) Transact(f func(d *DB) error) (err error) {
