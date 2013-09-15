@@ -67,6 +67,15 @@ type DB struct {
 	subscriptions      map[string]subscription
 }
 
+// Must returns a new object layer with a databsae at the specified path, or panics.
+func Must(path string) *DB {
+	if result, err := New(path); err == nil {
+		return result
+	} else {
+		panic(err)
+	}
+}
+
 // New returns a new object layer with a database at the specified path.
 func New(path string) (result *DB, err error) {
 	var kcdb *kc.DB
