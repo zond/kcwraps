@@ -68,7 +68,8 @@ All functions that process keys have been overridden to use the multi level key 
 */
 type DB struct {
 	*cabinet.KCDB
-	inTransaction bool
+	inTransaction    bool
+	afterTransaction []func(db *DB)
 }
 
 /*
@@ -84,6 +85,14 @@ func New(path string) (result *DB, err error) {
 		KCDB: kcdb,
 	}
 	return
+}
+
+func (self *DB) BetweenTransactions(f func(d *DB)) {
+	if self.inTransaction {
+		self.afterTransaction = append(self.afterTransaction, f)
+	} else {
+		f(self)
+	}
 }
 
 /*
@@ -109,6 +118,10 @@ func (self DB) Transact(f func(d *DB) error) (err error) {
 			if err = f(&self); err == nil {
 				if err = self.EndTran(true); err != nil {
 					self.EndTran(false)
+				}
+				self.inTransaction = false
+				for _, callback := range self.afterTransaction {
+					callback(&self)
 				}
 			} else {
 				self.EndTran(false)

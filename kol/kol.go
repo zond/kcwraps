@@ -157,7 +157,9 @@ func (self *DB) Del(obj interface{}) (err error) {
 		}
 		return nil
 	}); err == nil {
-		self.emit(typ, &value, nil)
+		self.db.BetweenTransactions(func(d *kc.DB) {
+			self.emit(typ, &value, nil)
+		})
 	}
 	return
 }
@@ -203,7 +205,9 @@ func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj int
 	}); err != nil {
 		return err
 	}
-	self.emit(typ, nil, &value)
+	self.db.BetweenTransactions(func(d *kc.DB) {
+		self.emit(typ, nil, &value)
+	})
 	return nil
 }
 
@@ -219,7 +223,9 @@ func (self *DB) update(id []byte, oldValue, objValue reflect.Value, typ reflect.
 	}); err != nil {
 		return err
 	}
-	self.emit(typ, &oldValue, &objValue)
+	self.db.BetweenTransactions(func(d *kc.DB) {
+		self.emit(typ, &oldValue, &objValue)
+	})
 	return nil
 }
 
