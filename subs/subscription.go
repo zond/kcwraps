@@ -47,7 +47,7 @@ type Subscription struct {
 /*
 Send will send a message through the WebSocket of this Subscription.
 
-Message.Type will be op, Message.Object.URL will be the url of this subscription and Message.Object.Data will be the JSON representation of i..
+Message.Type will be op, Message.Object.URL will be the url of this subscription and Message.Object.Data will be the JSON representation of i.
 */
 func (self *Subscription) Send(i interface{}, op string) {
 	if err := websocket.JSON.Send(self.pack.ws, Message{
