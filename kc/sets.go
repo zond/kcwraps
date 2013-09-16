@@ -24,6 +24,9 @@ func (self *DB) skipper(b []byte) setop.Skipper {
 	return result
 }
 
+/*
+SetOp will run expr on this DB and return the result.
+*/
 func (self *DB) SetOp(expr *setop.SetExpression) (result []KV) {
 	if err := expr.Each(self.skipper, func(res *setop.SetOpResult) {
 		result = append(result, KV{
@@ -51,7 +54,9 @@ func (self *DB) skipperString(b []byte) setop.Skipper {
 	return result
 }
 
-// SetOpString will execute the provided set expression and return the matches.
+/*
+SetOpString will parse and execute the provided set expression and return the matches.
+*/
 func (self *DB) SetOpString(expr string) (result []KV) {
 	if err := (&setop.SetExpression{
 		Code: expr,
