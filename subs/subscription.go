@@ -166,6 +166,8 @@ func (self *Pack) UnsubscribeAll() {
 
 /*
 New will return a new Subscription using the WebSocket and database of this Pack, bound to url.
+
+The new Subscription will have Call set to its Send func.
 */
 func (self *Pack) New(url string) (result *Subscription) {
 	result = &Subscription{
