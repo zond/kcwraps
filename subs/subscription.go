@@ -12,24 +12,43 @@ const (
 	FetchType = "Fetch"
 )
 
+/*
+Object is used to send JSON messages to subscribing WebSockets.
+*/
 type Object struct {
 	URL  string
 	Data interface{}
 }
 
+/*
+Message wraps Objects in JSON messages.
+*/
 type Message struct {
 	Type   string
 	Object Object
 }
 
+/*
+Subscription encapsulates a subscription by a WebSocket on an object or a query.
+*/
 type Subscription struct {
 	pack  *Pack
 	url   string
 	name  string
 	Query *kol.Query
-	Call  func(o interface{}, op string)
+	/*
+		Call defaults to Subscription.Send, and is used to deliver all data for this Subscription.
+
+		Replace it if you want to filter or decorate the data before sending it with Subscription.Send.
+	*/
+	Call func(o interface{}, op string)
 }
 
+/*
+Send will send a message through the WebSocket of this Subscription.
+
+Message.Type will be op, Message.Object.URL will be the url of this subscription and Message.Object.Data will be the JSON representation of i..
+*/
 func (self *Subscription) Send(i interface{}, op string) {
 	if err := websocket.JSON.Send(self.pack.ws, Message{
 		Type: op,
@@ -42,10 +61,22 @@ func (self *Subscription) Send(i interface{}, op string) {
 	}
 }
 
+/*
+DB returns the DB of the Pack that created this Subscription.
+*/
 func (self *Subscription) DB() *kol.DB {
 	return self.pack.db
 }
 
+/*
+Subscribe will start this Subscription.
+
+If the Subscription has a Query, the results of the Query will be sent through the WebSocket, and then a subscription for this query will start that continues
+sending updates on the results of the query through the WebSocket.
+
+If the Subscription doesn't have a Query, the object will be loaded from the database and sent through the websocket, and then a subscription for that object will start that
+continues sending updates on the object through the WebSocket.
+*/
 func (self *Subscription) Subscribe(object interface{}) {
 	if self.Query == nil {
 		if err := self.pack.db.Subscribe(self.name, object, kol.AllOps, func(i interface{}, op kol.Operation) {
@@ -77,6 +108,11 @@ func (self *Subscription) Subscribe(object interface{}) {
 	}
 }
 
+/*
+Pack encapsulates a set of Subscriptions from a single WebSocket connected to a single DB.
+
+Use it to unsubscribe all Subscriptions when the WebSocket disconnects.
+*/
 type Pack struct {
 	db   *kol.DB
 	ws   *websocket.Conn
@@ -84,6 +120,9 @@ type Pack struct {
 	subs map[string]*Subscription
 }
 
+/*
+New will return a new Pack for db and ws.
+*/
 func New(db *kol.DB, ws *websocket.Conn) *Pack {
 	return &Pack{
 		lock: new(sync.Mutex),
@@ -106,10 +145,16 @@ func (self *Pack) unsubscribeName(name string) {
 	}
 }
 
+/*
+Unsubscribe will unsubscribe the Subscription for url.
+*/
 func (self *Pack) Unsubscribe(url string) {
 	self.unsubscribeName(self.generateName(url))
 }
 
+/*
+UnsubscribeAll will unsubscribe all Subscriptions of this Pack.
+*/
 func (self *Pack) UnsubscribeAll() {
 	self.lock.Lock()
 	defer self.lock.Unlock()
@@ -119,6 +164,9 @@ func (self *Pack) UnsubscribeAll() {
 	self.subs = make(map[string]*Subscription)
 }
 
+/*
+New will return a new Subscription using the WebSocket and database of this Pack, bound to url.
+*/
 func (self *Pack) New(url string) (result *Subscription) {
 	result = &Subscription{
 		pack: self,

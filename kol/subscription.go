@@ -86,6 +86,12 @@ func (self *DB) Subscribe(name string, obj interface{}, ops Operation, subscribe
 	return
 }
 
+/*
+EmitUpdate will trigger an Update event on obj.
+
+Useful when chaining events, such as when an update of an inner objects
+should cause an updated of an outer object.
+*/
 func (self *DB) EmitUpdate(obj interface{}) {
 	value := reflect.ValueOf(obj).Elem()
 	self.emit(reflect.TypeOf(value.Interface()), &value, &value)
