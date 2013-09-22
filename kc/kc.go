@@ -101,7 +101,7 @@ Transact will execute f, with d being a *DB executing within a transactional con
 If self is already in a transactional context, no new transaction will be created,
 f will just execute within the same transaction.
 */
-func (self DB) Transact(f func(d *DB) error) (err error) {
+func (self *DB) Transact(f func(d *DB) error) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			self.EndTran(false)
@@ -109,19 +109,20 @@ func (self DB) Transact(f func(d *DB) error) (err error) {
 		}
 	}()
 	if self.inTransaction {
-		if err = f(&self); err != nil {
+		if err = f(self); err != nil {
 			self.EndTran(false)
 		}
 	} else {
-		if err = self.BeginTran(false); err == nil {
-			self.inTransaction = true
-			if err = f(&self); err == nil {
+		cpy := *self
+		if err = cpy.BeginTran(false); err == nil {
+			cpy.inTransaction = true
+			if err = f(&cpy); err == nil {
 				if err = self.EndTran(true); err != nil {
 					self.EndTran(false)
 				}
-				self.inTransaction = false
-				for _, callback := range self.afterTransaction {
-					callback(&self)
+				cpy.inTransaction = false
+				for _, callback := range cpy.afterTransaction {
+					callback(self)
 				}
 			} else {
 				self.EndTran(false)

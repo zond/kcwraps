@@ -16,8 +16,8 @@ const (
 Object is used to send JSON messages to subscribing WebSockets.
 */
 type Object struct {
-	URL  string
-	Data interface{}
+	URI  string
+	Data interface{} `json:",omitempty"`
 }
 
 /*
@@ -33,7 +33,7 @@ Subscription encapsulates a subscription by a WebSocket on an object or a query.
 */
 type Subscription struct {
 	pack  *Pack
-	url   string
+	uri   string
 	name  string
 	Query *kol.Query
 	/*
@@ -47,14 +47,14 @@ type Subscription struct {
 /*
 Send will send a message through the WebSocket of this Subscription.
 
-Message.Type will be op, Message.Object.URL will be the url of this subscription and Message.Object.Data will be the JSON representation of i.
+Message.Type will be op, Message.Object.URI will be the uri of this subscription and Message.Object.Data will be the JSON representation of i.
 */
 func (self *Subscription) Send(i interface{}, op string) {
 	if err := websocket.JSON.Send(self.pack.ws, Message{
 		Type: op,
 		Object: Object{
 			Data: i,
-			URL:  self.url,
+			URI:  self.uri,
 		},
 	}); err != nil {
 		self.pack.unsubscribeName(self.name)
@@ -132,8 +132,8 @@ func New(db *kol.DB, ws *websocket.Conn) *Pack {
 	}
 }
 
-func (self *Pack) generateName(url string) string {
-	return fmt.Sprintf("%v/%v", self.ws.Request().RemoteAddr, url)
+func (self *Pack) generateName(uri string) string {
+	return fmt.Sprintf("%v/%v", self.ws.Request().RemoteAddr, uri)
 }
 
 func (self *Pack) unsubscribeName(name string) {
@@ -146,10 +146,10 @@ func (self *Pack) unsubscribeName(name string) {
 }
 
 /*
-Unsubscribe will unsubscribe the Subscription for url.
+Unsubscribe will unsubscribe the Subscription for uri.
 */
-func (self *Pack) Unsubscribe(url string) {
-	self.unsubscribeName(self.generateName(url))
+func (self *Pack) Unsubscribe(uri string) {
+	self.unsubscribeName(self.generateName(uri))
 }
 
 /*
@@ -165,15 +165,15 @@ func (self *Pack) UnsubscribeAll() {
 }
 
 /*
-New will return a new Subscription using the WebSocket and database of this Pack, bound to url.
+New will return a new Subscription using the WebSocket and database of this Pack, bound to uri.
 
 The new Subscription will have Call set to its Send func.
 */
-func (self *Pack) New(url string) (result *Subscription) {
+func (self *Pack) New(uri string) (result *Subscription) {
 	result = &Subscription{
 		pack: self,
-		url:  url,
-		name: self.generateName(url),
+		uri:  uri,
+		name: self.generateName(uri),
 	}
 	result.Call = result.Send
 	return
