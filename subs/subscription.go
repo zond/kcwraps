@@ -41,7 +41,18 @@ type Subscription struct {
 
 		Replace it if you want to filter or decorate the data before sending it with Subscription.Send.
 	*/
-	Call func(o interface{}, op string)
+	Call func(o interface{}, op string) error
+	/*
+	  OnUnsubscribe will be called if this Subscription gets automatically unsubscribed due to panic or error.
+	*/
+	UnsubscribeListener func(self *Subscription, reason interface{})
+}
+
+/*
+Name returns the name of the Subscription.
+*/
+func (self *Subscription) Name() string {
+	return self.name
 }
 
 /*
@@ -49,16 +60,14 @@ Send will send a message through the WebSocket of this Subscription.
 
 Message.Type will be op, Message.Object.URI will be the uri of this subscription and Message.Object.Data will be the JSON representation of i.
 */
-func (self *Subscription) Send(i interface{}, op string) {
-	if err := websocket.JSON.Send(self.pack.ws, Message{
+func (self *Subscription) Send(i interface{}, op string) (err error) {
+	return websocket.JSON.Send(self.pack.ws, Message{
 		Type: op,
 		Object: Object{
 			Data: i,
 			URI:  self.uri,
 		},
-	}); err != nil {
-		self.pack.unsubscribeName(self.name)
-	}
+	})
 }
 
 /*
@@ -77,33 +86,43 @@ sending updates on the results of the query through the WebSocket.
 If the Subscription doesn't have a Query, the object will be loaded from the database and sent through the websocket, and then a subscription for that object will start that
 continues sending updates on the object through the WebSocket.
 */
-func (self *Subscription) Subscribe(object interface{}) {
+func (self *Subscription) Subscribe(object interface{}) error {
 	if self.Query == nil {
-		if err := self.pack.db.Subscribe(self.name, object, kol.AllOps, func(i interface{}, op kol.Operation) {
-			self.Call(i, op.String())
+		if err := self.pack.db.SubscribeWithUnsubscribeListener(self.name, object, kol.AllOps, func(i interface{}, op kol.Operation) error {
+			return self.Call(i, op.String())
+		}, func(name string, reason interface{}) {
+			if self.UnsubscribeListener != nil {
+				self.UnsubscribeListener(self, reason)
+			}
 		}); err != nil {
-			panic(err)
+			return err
 		}
 		if err := self.pack.db.Get(object); err != nil {
 			if err != kol.NotFound {
-				panic(err)
+				return err
+			} else {
+				return nil
 			}
 		} else {
-			self.Call(object, FetchType)
+			return self.Call(object, FetchType)
 		}
 	} else {
-		if err := self.Query.Subscribe(self.name, object, kol.AllOps, func(i interface{}, op kol.Operation) {
+		if err := self.Query.SubscribeWithUnsubscribeListener(self.name, object, kol.AllOps, func(i interface{}, op kol.Operation) error {
 			slice := reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(object)), 1, 1)
 			slice.Index(0).Set(reflect.ValueOf(i))
-			self.Call(slice.Interface(), op.String())
+			return self.Call(slice.Interface(), op.String())
+		}, func(name string, reason interface{}) {
+			if self.UnsubscribeListener != nil {
+				self.UnsubscribeListener(self, reason)
+			}
 		}); err != nil {
-			panic(err)
+			return err
 		}
 		slice := reflect.New(reflect.SliceOf(reflect.TypeOf(object))).Interface()
 		if err := self.Query.All(slice); err != nil {
-			panic(err)
+			return err
 		} else {
-			self.Call(reflect.ValueOf(slice).Elem().Interface(), FetchType)
+			return self.Call(reflect.ValueOf(slice).Elem().Interface(), FetchType)
 		}
 	}
 }
@@ -114,10 +133,11 @@ Pack encapsulates a set of Subscriptions from a single WebSocket connected to a 
 Use it to unsubscribe all Subscriptions when the WebSocket disconnects.
 */
 type Pack struct {
-	db   *kol.DB
-	ws   *websocket.Conn
-	lock *sync.Mutex
-	subs map[string]*Subscription
+	db                  *kol.DB
+	ws                  *websocket.Conn
+	lock                *sync.Mutex
+	subs                map[string]*Subscription
+	unsubscribeListener func(sub *Subscription, reason interface{})
 }
 
 /*
@@ -130,6 +150,11 @@ func New(db *kol.DB, ws *websocket.Conn) *Pack {
 		ws:   ws,
 		db:   db,
 	}
+}
+
+func (self *Pack) OnUnsubscribe(f func(sub *Subscription, reason interface{})) *Pack {
+	self.unsubscribeListener = f
+	return self
 }
 
 func (self *Pack) generateName(uri string) string {
@@ -171,9 +196,10 @@ The new Subscription will have Call set to its Send func.
 */
 func (self *Pack) New(uri string) (result *Subscription) {
 	result = &Subscription{
-		pack: self,
-		uri:  uri,
-		name: self.generateName(uri),
+		pack:                self,
+		uri:                 uri,
+		name:                self.generateName(uri),
+		UnsubscribeListener: self.unsubscribeListener,
 	}
 	result.Call = result.Send
 	return

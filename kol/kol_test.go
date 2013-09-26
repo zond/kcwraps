@@ -307,7 +307,7 @@ func TestIdSubscribe(t *testing.T) {
 		}
 	}
 	done := make(chan bool)
-	if err := d.Subscribe("subtest1", &hehu, AllOps, func(obj interface{}, op Operation) {
+	if err := d.Subscribe("subtest1", &hehu, AllOps, func(obj interface{}, op Operation) error {
 		switch op {
 		case Delete:
 			removed = append(removed, obj.(*testStruct))
@@ -317,6 +317,7 @@ func TestIdSubscribe(t *testing.T) {
 			updated = append(updated, obj.(*testStruct))
 		}
 		done <- true
+		return nil
 	}); err != nil {
 		t.Errorf(err.Error())
 	}
@@ -372,7 +373,7 @@ func TestQuerySubscribe(t *testing.T) {
 	}
 	done := make(chan bool)
 	hehu := testStruct{}
-	if err := d.Query().Where(Equals{"Name", "qname"}).Subscribe("subtest1", &hehu, AllOps, func(obj interface{}, op Operation) {
+	if err := d.Query().Where(Equals{"Name", "qname"}).Subscribe("subtest1", &hehu, AllOps, func(obj interface{}, op Operation) error {
 		switch op {
 		case Delete:
 			removed = append(removed, obj.(*testStruct))
@@ -382,6 +383,7 @@ func TestQuerySubscribe(t *testing.T) {
 			updated = append(updated, obj.(*testStruct))
 		}
 		done <- true
+		return nil
 	}); err != nil {
 		t.Errorf(err.Error())
 	}
