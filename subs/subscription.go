@@ -147,7 +147,7 @@ type Pack struct {
 	lock                *sync.Mutex
 	subs                map[string]*Subscription
 	unsubscribeListener func(sub *Subscription, reason interface{})
-	log                 func(i interface{}, op string)
+	log                 func(uri string, i interface{}, op string)
 }
 
 /*
@@ -167,7 +167,7 @@ func (self *Pack) OnUnsubscribe(f func(sub *Subscription, reason interface{})) *
 	return self
 }
 
-func (self *Pack) Log(f func(i interface{}, op string)) *Pack {
+func (self *Pack) Log(f func(name string, i interface{}, op string)) *Pack {
 	self.log = f
 	return self
 }
@@ -215,7 +215,9 @@ func (self *Pack) New(uri string) (result *Subscription) {
 		uri:                 uri,
 		name:                self.generateName(uri),
 		UnsubscribeListener: self.unsubscribeListener,
-		Log:                 self.log,
+		Log: func(i interface{}, op string) {
+			self.log(uri, i, op)
+		},
 	}
 	result.Call = result.Send
 	return
