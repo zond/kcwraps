@@ -46,6 +46,10 @@ type Subscription struct {
 	  OnUnsubscribe will be called if this Subscription gets automatically unsubscribed due to panic or error.
 	*/
 	UnsubscribeListener func(self *Subscription, reason interface{})
+	/*
+	  Log will be called whenever data is sent over the socket.
+	*/
+	Log func(o interface{}, op string)
 }
 
 /*
@@ -61,6 +65,11 @@ Send will send a message through the WebSocket of this Subscription.
 Message.Type will be op, Message.Object.URI will be the uri of this subscription and Message.Object.Data will be the JSON representation of i.
 */
 func (self *Subscription) Send(i interface{}, op string) (err error) {
+	defer func() {
+		if err == nil && self.Log != nil {
+			self.Log(i, op)
+		}
+	}()
 	return websocket.JSON.Send(self.pack.ws, Message{
 		Type: op,
 		Object: Object{
@@ -138,6 +147,7 @@ type Pack struct {
 	lock                *sync.Mutex
 	subs                map[string]*Subscription
 	unsubscribeListener func(sub *Subscription, reason interface{})
+	log                 func(i interface{}, op string)
 }
 
 /*
@@ -154,6 +164,11 @@ func New(db *kol.DB, ws *websocket.Conn) *Pack {
 
 func (self *Pack) OnUnsubscribe(f func(sub *Subscription, reason interface{})) *Pack {
 	self.unsubscribeListener = f
+	return self
+}
+
+func (self *Pack) Log(f func(i interface{}, op string)) *Pack {
+	self.log = f
 	return self
 }
 
@@ -200,6 +215,7 @@ func (self *Pack) New(uri string) (result *Subscription) {
 		uri:                 uri,
 		name:                self.generateName(uri),
 		UnsubscribeListener: self.unsubscribeListener,
+		Log:                 self.log,
 	}
 	result.Call = result.Send
 	return
