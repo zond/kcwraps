@@ -174,39 +174,27 @@ type Query struct {
 }
 
 /*
-Subscribe is a shorthand for SubscribeWithUnsubscribeListener with a nil UnsubscribeListener.
-*/
-func (self *Query) Subscribe(name string, obj interface{}, ops Operation, subscriber Subscriber) (err error) {
-	return self.SubscribeWithUnsubscribeListener(name, obj, ops, subscriber, nil)
-}
-
-/*
-Subscribe will call the subscriber function on all database updates matching this query.
+Subscription will return a subscriber for all database updates matching this query.
 
 name is used to separate different subscriptions, and to unsubscribe.
 
-ops is the binary OR of the operations this subscription should follow.
+ops is the binary OR of the operations this Subscription should follow.
 
 subscriber will be called for all updates of the results of the query.
-
-unsubscribeListener (if non nil) will be called when the subscriber is automatically unsubscribed due to panic or error.
 */
-func (self *Query) SubscribeWithUnsubscribeListener(name string, obj interface{}, ops Operation, subscriber Subscriber, unsubscribeListener UnsubscribeListener) (err error) {
+func (self *Query) Subscription(name string, obj interface{}, ops Operation, subscriber Subscriber) (result *Subscription, err error) {
 	var value reflect.Value
 	if value, _, err = identify(obj); err != nil {
 		return
 	}
 	self.typ = value.Type()
-	self.db.subscriptionsMutex.Lock()
-	defer self.db.subscriptionsMutex.Unlock()
-	self.db.subscriptions[name] = &subscription{
-		db:                  self.db,
-		name:                name,
-		matcher:             self.match,
-		subscriber:          subscriber,
-		unsubscribeListener: unsubscribeListener,
-		ops:                 ops,
-		typ:                 self.typ,
+	result = &Subscription{
+		db:         self.db,
+		name:       name,
+		matcher:    self.match,
+		subscriber: subscriber,
+		ops:        ops,
+		typ:        self.typ,
 	}
 	return
 }

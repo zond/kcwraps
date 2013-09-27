@@ -64,7 +64,7 @@ func identify(obj interface{}) (value, id reflect.Value, err error) {
 type DB struct {
 	db                 *kc.DB
 	subscriptionsMutex *sync.RWMutex
-	subscriptions      map[string]*subscription
+	subscriptions      map[string]*Subscription
 }
 
 // Must returns a new object layer with a databsae at the specified path, or panics.
@@ -85,7 +85,7 @@ func New(path string) (result *DB, err error) {
 	result = &DB{
 		db:                 kcdb,
 		subscriptionsMutex: new(sync.RWMutex),
-		subscriptions:      make(map[string]*subscription),
+		subscriptions:      make(map[string]*Subscription),
 	}
 	return
 }

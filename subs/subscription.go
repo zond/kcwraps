@@ -6,6 +6,7 @@ import (
 	"github.com/zond/kcwraps/kol"
 	"reflect"
 	"sync"
+	"time"
 )
 
 const (
@@ -47,9 +48,9 @@ type Subscription struct {
 	*/
 	UnsubscribeListener func(self *Subscription, reason interface{})
 	/*
-	  Log will be called whenever data is sent over the socket.
+	  Logger will be called whenever data is sent over the socket.
 	*/
-	Log func(o interface{}, op string)
+	Logger func(o interface{}, op string, dur time.Duration)
 }
 
 /*
@@ -65,11 +66,6 @@ Send will send a message through the WebSocket of this Subscription.
 Message.Type will be op, Message.Object.URI will be the uri of this subscription and Message.Object.Data will be the JSON representation of i.
 */
 func (self *Subscription) Send(i interface{}, op string) (err error) {
-	defer func() {
-		if err == nil && self.Log != nil {
-			self.Log(i, op)
-		}
-	}()
 	return websocket.JSON.Send(self.pack.ws, Message{
 		Type: op,
 		Object: Object{
@@ -96,16 +92,36 @@ If the Subscription doesn't have a Query, the object will be loaded from the dat
 continues sending updates on the object through the WebSocket.
 */
 func (self *Subscription) Subscribe(object interface{}) error {
+	start := time.Now()
+	var sub *kol.Subscription
+	var err error
 	if self.Query == nil {
-		if err := self.pack.db.SubscribeWithUnsubscribeListener(self.name, object, kol.AllOps, func(i interface{}, op kol.Operation) error {
+		if sub, err = self.pack.db.Subscription(self.name, object, kol.AllOps, func(i interface{}, op kol.Operation) error {
 			return self.Call(i, op.String())
-		}, func(name string, reason interface{}) {
-			if self.UnsubscribeListener != nil {
-				self.UnsubscribeListener(self, reason)
-			}
 		}); err != nil {
 			return err
 		}
+	} else {
+		if sub, err = self.Query.Subscription(self.name, object, kol.AllOps, func(i interface{}, op kol.Operation) error {
+			slice := reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(object)), 1, 1)
+			slice.Index(0).Set(reflect.ValueOf(i))
+			return self.Call(slice.Interface(), op.String())
+		}); err != nil {
+			return err
+		}
+	}
+	if self.UnsubscribeListener != nil {
+		sub.UnsubscribeListener = func(name string, reason interface{}) {
+			self.UnsubscribeListener(self, reason)
+		}
+	}
+	if self.Logger != nil {
+		sub.Logger = func(i interface{}, op kol.Operation, dur time.Duration) {
+			self.Logger(i, op.String(), dur)
+		}
+	}
+	sub.Subscribe()
+	if self.Query == nil {
 		if err := self.pack.db.Get(object); err != nil {
 			if err != kol.NotFound {
 				return err
@@ -113,25 +129,25 @@ func (self *Subscription) Subscribe(object interface{}) error {
 				return nil
 			}
 		} else {
+			if self.Logger != nil {
+				defer func() {
+					self.Logger(object, FetchType, time.Now().Sub(start))
+				}()
+			}
 			return self.Call(object, FetchType)
 		}
 	} else {
-		if err := self.Query.SubscribeWithUnsubscribeListener(self.name, object, kol.AllOps, func(i interface{}, op kol.Operation) error {
-			slice := reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(object)), 1, 1)
-			slice.Index(0).Set(reflect.ValueOf(i))
-			return self.Call(slice.Interface(), op.String())
-		}, func(name string, reason interface{}) {
-			if self.UnsubscribeListener != nil {
-				self.UnsubscribeListener(self, reason)
-			}
-		}); err != nil {
-			return err
-		}
 		slice := reflect.New(reflect.SliceOf(reflect.TypeOf(object))).Interface()
 		if err := self.Query.All(slice); err != nil {
 			return err
 		} else {
-			return self.Call(reflect.ValueOf(slice).Elem().Interface(), FetchType)
+			iface := reflect.ValueOf(slice).Elem().Interface()
+			if self.Logger != nil {
+				defer func() {
+					self.Logger(iface, FetchType, time.Now().Sub(start))
+				}()
+			}
+			return self.Call(iface, FetchType)
 		}
 	}
 }
@@ -147,7 +163,7 @@ type Pack struct {
 	lock                *sync.Mutex
 	subs                map[string]*Subscription
 	unsubscribeListener func(sub *Subscription, reason interface{})
-	log                 func(uri string, i interface{}, op string)
+	logger              func(uri string, i interface{}, op string, dur time.Duration)
 }
 
 /*
@@ -167,8 +183,8 @@ func (self *Pack) OnUnsubscribe(f func(sub *Subscription, reason interface{})) *
 	return self
 }
 
-func (self *Pack) Log(f func(name string, i interface{}, op string)) *Pack {
-	self.log = f
+func (self *Pack) Logger(f func(name string, i interface{}, op string, dur time.Duration)) *Pack {
+	self.logger = f
 	return self
 }
 
@@ -215,8 +231,8 @@ func (self *Pack) New(uri string) (result *Subscription) {
 		uri:                 uri,
 		name:                self.generateName(uri),
 		UnsubscribeListener: self.unsubscribeListener,
-		Log: func(i interface{}, op string) {
-			self.log(uri, i, op)
+		Logger: func(i interface{}, op string, dur time.Duration) {
+			self.logger(uri, i, op, dur)
 		},
 	}
 	result.Call = result.Send

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"time"
 )
 
 type Operation int
@@ -41,35 +42,57 @@ has been unsubscribed.
 */
 type UnsubscribeListener func(name string, reason interface{})
 
+/*
+Logger is used to log and/or measure what the subscribers do.
+*/
+type Logger func(i interface{}, op Operation, dur time.Duration)
+
 type matcher func(typ reflect.Type, value reflect.Value) (result bool, err error)
 
-type subscription struct {
+type Subscription struct {
 	db                  *DB
 	name                string
 	matcher             matcher
 	subscriber          Subscriber
-	unsubscribeListener UnsubscribeListener
+	UnsubscribeListener UnsubscribeListener
+	Logger              Logger
 	ops                 Operation
 	typ                 reflect.Type
 }
 
-func (self *subscription) unsubscribe(reason interface{}) {
+/*
+Subscribe will start the subscription.
+*/
+func (self *Subscription) Subscribe() {
+	self.db.subscriptionsMutex.Lock()
+	defer self.db.subscriptionsMutex.Unlock()
+	self.db.subscriptions[self.name] = self
+	return
+}
+
+/*
+Unsubscribe will unsubscribe this Subscription with the given reason.
+*/
+func (self *Subscription) Unsubscribe(reason interface{}) {
 	self.db.Unsubscribe(self.name)
-	if self.unsubscribeListener != nil {
-		self.unsubscribeListener(self.name, reason)
+	if self.UnsubscribeListener != nil {
+		self.UnsubscribeListener(self.name, reason)
 	}
 }
 
-func (self *subscription) call(obj interface{}, op Operation) {
+func (self *Subscription) call(obj interface{}, op Operation, start time.Time) {
 	if err := self.subscriber(obj, op); err != nil {
-		self.unsubscribe(err)
+		self.Unsubscribe(err)
+	} else if self.Logger != nil {
+		self.Logger(obj, op, time.Now().Sub(start))
 	}
 }
 
-func (self *subscription) handle(typ reflect.Type, oldValue, newValue *reflect.Value) {
+func (self *Subscription) handle(typ reflect.Type, oldValue, newValue *reflect.Value) {
+	start := time.Now()
 	defer func() {
 		if e := recover(); e != nil {
-			self.unsubscribe(e)
+			self.Unsubscribe(e)
 			panic(e)
 		}
 	}()
@@ -78,33 +101,33 @@ func (self *subscription) handle(typ reflect.Type, oldValue, newValue *reflect.V
 	newMatch := false
 	if oldValue != nil {
 		if oldMatch, err = self.matcher(typ, *oldValue); err != nil {
-			self.unsubscribe(err)
+			self.Unsubscribe(err)
 			return
 		}
 	}
 	if newValue != nil {
 		if newMatch, err = self.matcher(typ, *newValue); err != nil {
-			self.unsubscribe(err)
+			self.Unsubscribe(err)
 			return
 		}
 	}
 	if oldMatch && newMatch && self.ops&Update == Update {
 		cpy := reflect.New(typ)
 		cpy.Elem().Set(*newValue)
-		self.call(cpy.Interface(), Update)
+		self.call(cpy.Interface(), Update, start)
 	} else if oldMatch && self.ops&Delete == Delete {
 		cpy := reflect.New(typ)
 		cpy.Elem().Set(*oldValue)
-		self.call(cpy.Interface(), Delete)
+		self.call(cpy.Interface(), Delete, start)
 	} else if newMatch && self.ops&Create == Create {
 		cpy := reflect.New(typ)
 		cpy.Elem().Set(*newValue)
-		self.call(cpy.Interface(), Create)
+		self.call(cpy.Interface(), Create, start)
 	}
 }
 
 /*
-Unsubscribe will remove a subscription.
+Unsubscribe will remove a Subscription.
 */
 func (self *DB) Unsubscribe(name string) {
 	self.subscriptionsMutex.Lock()
@@ -113,24 +136,15 @@ func (self *DB) Unsubscribe(name string) {
 }
 
 /*
-Subscribe is a shorthand for SubscribeWithUnsubscribeListener with a nil UnsubscribeListener.
-*/
-func (self *DB) Subscribe(name string, obj interface{}, ops Operation, subscriber Subscriber) (err error) {
-	return self.SubscribeWithUnsubscribeListener(name, obj, ops, subscriber, nil)
-}
+Subscription will return a Subscription to all updates of a given object in the database.
 
-/*
-SubscribeWithUnsubscribeListener will add a subscription to all updates of a given object in the database.
+name is used to separate different Subscriptions, and to unsubscribe.
 
-name is used to separate different subscriptions, and to unsubscribe.
-
-ops is the binary OR of the operations this subscription should follow.
+ops is the binary OR of the operations this Subscription should follow.
 
 subscriber will be called on all updates of objects with the same id.
-
-unsubscribeListener (if non nil) will be called when the subscriber is automatically unsubscribed due to panic or error.
 */
-func (self *DB) SubscribeWithUnsubscribeListener(name string, obj interface{}, ops Operation, subscriber Subscriber, unsubscribeListener UnsubscribeListener) (err error) {
+func (self *DB) Subscription(name string, obj interface{}, ops Operation, subscriber Subscriber) (result *Subscription, err error) {
 	var wantedValue reflect.Value
 	var wantedId reflect.Value
 	if wantedValue, wantedId, err = identify(obj); err != nil {
@@ -139,9 +153,7 @@ func (self *DB) SubscribeWithUnsubscribeListener(name string, obj interface{}, o
 	wantedType := wantedValue.Type()
 	wantedBytes := make([]byte, len(wantedId.Bytes()))
 	copy(wantedBytes, wantedId.Bytes())
-	self.subscriptionsMutex.Lock()
-	defer self.subscriptionsMutex.Unlock()
-	self.subscriptions[name] = &subscription{
+	result = &Subscription{
 		name: name,
 		db:   self,
 		matcher: func(typ reflect.Type, value reflect.Value) (result bool, err error) {
@@ -154,10 +166,9 @@ func (self *DB) SubscribeWithUnsubscribeListener(name string, obj interface{}, o
 			result = true
 			return
 		},
-		subscriber:          subscriber,
-		unsubscribeListener: unsubscribeListener,
-		ops:                 ops,
-		typ:                 wantedType,
+		subscriber: subscriber,
+		ops:        ops,
+		typ:        wantedType,
 	}
 	return
 }
