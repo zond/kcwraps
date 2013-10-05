@@ -2,6 +2,7 @@ package subs
 
 import (
 	"code.google.com/p/go.net/websocket"
+	"encoding/json"
 	"fmt"
 	"github.com/zond/kcwraps/kol"
 	"reflect"
@@ -14,6 +15,50 @@ const (
 )
 
 /*
+JSON wraps anything that is a JSON object.
+*/
+type JSON struct {
+	Data interface{}
+}
+
+/*
+Get returns the value under key as another JSON.
+*/
+func (self JSON) Get(key string) JSON {
+	return JSON{self.Data.(map[string]interface{})[key].(map[string]interface{})}
+}
+
+/*
+Overwrite will JSON encode itself and decode it into dest.
+*/
+func (self JSON) Overwrite(dest interface{}) {
+	b, err := json.Marshal(self)
+	if err != nil {
+		panic(err)
+	}
+	err = json.Unmarshal(b, dest)
+	if err != nil {
+		panic(err)
+	}
+}
+
+/*
+GetString  returns the value under key as a string.
+*/
+func (self JSON) GetString(key string) string {
+	return self.Data.(map[string]interface{})[key].(string)
+}
+
+/*
+Message wraps Objects in JSON messages.
+*/
+type Message struct {
+	Type   string
+	Object Object `json:",omitempty"`
+	Method Method `json:",omitempty"`
+}
+
+/*
 Object is used to send JSON messages to subscribing WebSockets.
 */
 type Object struct {
@@ -22,11 +67,12 @@ type Object struct {
 }
 
 /*
-Message wraps Objects in JSON messages.
+Method is used to send JSON RPC requests.
 */
-type Message struct {
-	Type   string
-	Object Object
+type Method struct {
+	Name string
+	Id   string
+	Data interface{} `json:",omitempty"`
 }
 
 /*
