@@ -186,6 +186,9 @@ func (self *Subscription) Subscribe(object interface{}) error {
 		}
 	}
 	sub.Subscribe()
+	self.pack.lock.Lock()
+	defer self.pack.lock.Unlock()
+	self.pack.subs[self.name] = self
 	if self.Query == nil {
 		if err := self.pack.db.Get(object); err != nil {
 			if err != kol.NotFound {
