@@ -25,7 +25,7 @@ type JSON struct {
 Get returns the value under key as another JSON.
 */
 func (self JSON) Get(key string) JSON {
-	return JSON{self.Data.(map[string]interface{})[key].(map[string]interface{})}
+	return JSON{self.Data.(map[string]interface{})[key]}
 }
 
 /*
@@ -43,7 +43,19 @@ func (self JSON) Overwrite(dest interface{}) {
 }
 
 /*
-GetString  returns the value under key as a string.
+GetStringSLice returns the value under key as a string slice.
+*/
+func (self JSON) GetStringSlice(key string) (result []string) {
+	is := self.Data.(map[string]interface{})[key].([]interface{})
+	result = make([]string, len(is))
+	for index, i := range is {
+		result[index] = i.(string)
+	}
+	return
+}
+
+/*
+GetString returns the value under key as a string.
 */
 func (self JSON) GetString(key string) string {
 	return self.Data.(map[string]interface{})[key].(string)
@@ -104,6 +116,13 @@ Name returns the name of the Subscription.
 */
 func (self *Subscription) Name() string {
 	return self.name
+}
+
+/*
+URI returns the URI of the subscription.
+*/
+func (self *Subscription) URI() string {
+	return self.uri
 }
 
 /*
