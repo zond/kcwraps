@@ -66,8 +66,8 @@ Message wraps Objects in JSON messages.
 */
 type Message struct {
 	Type   string
-	Object Object `json:",omitempty"`
-	Method Method `json:",omitempty"`
+	Object *Object `json:",omitempty"`
+	Method *Method `json:",omitempty"`
 }
 
 /*
@@ -133,7 +133,7 @@ Message.Type will be op, Message.Object.URI will be the uri of this subscription
 func (self *Subscription) Send(i interface{}, op string) (err error) {
 	return websocket.JSON.Send(self.pack.ws, Message{
 		Type: op,
-		Object: Object{
+		Object: &Object{
 			Data: i,
 			URI:  self.uri,
 		},
