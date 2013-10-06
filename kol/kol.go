@@ -1,6 +1,7 @@
 package kol
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/zond/kcwraps/kc"
@@ -15,6 +16,25 @@ const (
 	kol        = "kol"
 	idField    = "Id"
 )
+
+type Id []byte
+
+func (self Id) String() string {
+	return base64.URLEncoding.EncodeToString(self)
+}
+
+func (self Id) MarshalJSON() (b []byte, err error) {
+	return json.Marshal(self.String())
+}
+
+func (self *Id) UnmarshalJSON(b []byte) (err error) {
+	base64Encoded := ""
+	if err = json.Unmarshal(b, &base64Encoded); err != nil {
+		return
+	}
+	*self, err = base64.URLEncoding.DecodeString(base64Encoded)
+	return
+}
 
 // NotFound means that the mentioned key did not exist.
 var NotFound = fmt.Errorf("Not found")

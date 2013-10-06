@@ -32,7 +32,7 @@ func (self JSON) Get(key string) JSON {
 Overwrite will JSON encode itself and decode it into dest.
 */
 func (self JSON) Overwrite(dest interface{}) {
-	b, err := json.Marshal(self)
+	b, err := json.Marshal(self.Data)
 	if err != nil {
 		panic(err)
 	}
