@@ -13,11 +13,13 @@ import (
 )
 
 type testStruct struct {
-	Id    []byte
-	Name  string `kol:"index"`
-	Age   int    `kol:"index"`
-	Email string
-	Dad   []byte `kol:"fk<Email>"`
+	Id        []byte
+	Name      string `kol:"index"`
+	Age       int    `kol:"index"`
+	Email     string
+	Dad       []byte `kol:"fk<Email>"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func (self *testStruct) String() string {
@@ -565,5 +567,46 @@ func TestJoin(t *testing.T) {
 	}
 	if len(res) != 0 {
 		t.Errorf("wanted %+v, got %+v", nil, res)
+	}
+}
+
+func isAlmost(t1, t2 time.Time) bool {
+	if diff := t1.Sub(t2); diff > time.Second || diff < -time.Second {
+		return false
+	}
+	return true
+}
+
+func TestCreatedAt(t *testing.T) {
+	d, err := New("test")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	d.Clear()
+	defer d.Close()
+	ts := &testStruct{}
+	if err := d.Set(ts); err != nil {
+		t.Errorf(err.Error())
+	}
+	if ts.CreatedAt.IsZero() {
+		t.Errorf("Wanted non nil")
+	}
+	if ts.UpdatedAt.IsZero() {
+		t.Errorf("Wanted non nil")
+	}
+	if !isAlmost(ts.UpdatedAt, ts.CreatedAt) {
+		t.Errorf("Wanted equal")
+	}
+	oldUpd := ts.UpdatedAt
+	oldCre := ts.CreatedAt
+	ts.Name = "hehu"
+	if err := d.Set(ts); err != nil {
+		t.Errorf(err.Error())
+	}
+	if oldUpd.Equal(ts.UpdatedAt) {
+		t.Errorf("Wanted non equal")
+	}
+	if !oldCre.Equal(ts.CreatedAt) {
+		t.Errorf("Wanted equal")
 	}
 }

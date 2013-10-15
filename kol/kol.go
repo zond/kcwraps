@@ -12,10 +12,14 @@ import (
 )
 
 const (
-	primaryKey = "pk"
-	kol        = "kol"
-	idField    = "Id"
+	primaryKey     = "pk"
+	kol            = "kol"
+	idField        = "Id"
+	updatedAtField = "UpdatedAt"
+	createdAtField = "CreatedAt"
 )
+
+var timeType = reflect.TypeOf(time.Now())
 
 type Id []byte
 
@@ -217,6 +221,12 @@ func (self *DB) save(id []byte, typ reflect.Type, obj interface{}) error {
 }
 
 func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj interface{}) error {
+	if updatedAt := value.FieldByName(updatedAtField); updatedAt.IsValid() && updatedAt.Type() == timeType {
+		updatedAt.Set(reflect.ValueOf(time.Now()))
+	}
+	if createdAt := value.FieldByName(createdAtField); createdAt.IsValid() && createdAt.Type() == timeType {
+		createdAt.Set(reflect.ValueOf(time.Now()))
+	}
 	if err := self.Transact(func(self *DB) error {
 		if err := self.index(id, value, typ); err != nil {
 			return err
@@ -232,6 +242,9 @@ func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj int
 }
 
 func (self *DB) update(id []byte, oldValue, objValue reflect.Value, typ reflect.Type, obj interface{}) error {
+	if updatedAt := objValue.FieldByName(updatedAtField); updatedAt.IsValid() && updatedAt.Type() == timeType {
+		updatedAt.Set(reflect.ValueOf(time.Now()))
+	}
 	if err := self.Transact(func(self *DB) error {
 		if err := self.deIndex(id, oldValue, typ); err != nil {
 			return err
