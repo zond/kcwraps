@@ -1,6 +1,7 @@
 package kol
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -38,6 +39,10 @@ func (self *Id) UnmarshalJSON(b []byte) (err error) {
 	}
 	*self, err = base64.URLEncoding.DecodeString(base64Encoded)
 	return
+}
+
+func (self *Id) Equals(o Id) bool {
+	return bytes.Compare([]byte(*self), []byte(o)) == 0
 }
 
 // NotFound means that the mentioned key did not exist.
