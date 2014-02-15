@@ -5,11 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/zond/kcwraps/kc"
 	"math/rand"
 	"reflect"
 	"sync"
 	"time"
+
+	"github.com/zond/kcwraps/kc"
 )
 
 const (
@@ -93,7 +94,7 @@ func identify(obj interface{}) (value, id reflect.Value, err error) {
 type DB struct {
 	db                 *kc.DB
 	subscriptionsMutex *sync.RWMutex
-	subscriptions      map[string]*Subscription
+	subscriptions      map[string]map[string]*Subscription
 }
 
 // Must returns a new object layer with a databsae at the specified path, or panics.
@@ -114,7 +115,7 @@ func New(path string) (result *DB, err error) {
 	result = &DB{
 		db:                 kcdb,
 		subscriptionsMutex: new(sync.RWMutex),
-		subscriptions:      make(map[string]*Subscription),
+		subscriptions:      make(map[string]map[string]*Subscription),
 	}
 	return
 }

@@ -66,7 +66,12 @@ Subscribe will start the subscription.
 func (self *Subscription) Subscribe() {
 	self.db.subscriptionsMutex.Lock()
 	defer self.db.subscriptionsMutex.Unlock()
-	self.db.subscriptions[self.name] = self
+	typeSubs, found := self.db.subscriptions[self.typ.Name()]
+	if !found {
+		typeSubs = make(map[string]*Subscription)
+		self.db.subscriptions[self.typ.Name()] = typeSubs
+	}
+	typeSubs[self.name] = self
 	return
 }
 
@@ -132,7 +137,9 @@ Unsubscribe will remove a Subscription.
 func (self *DB) Unsubscribe(name string) {
 	self.subscriptionsMutex.Lock()
 	defer self.subscriptionsMutex.Unlock()
-	delete(self.subscriptions, name)
+	for _, typeSubs := range self.subscriptions {
+		delete(typeSubs, name)
+	}
 }
 
 /*
@@ -200,7 +207,7 @@ func (self *DB) emit(typ reflect.Type, oldValue, newValue *reflect.Value) {
 	}
 	self.subscriptionsMutex.RLock()
 	defer self.subscriptionsMutex.RUnlock()
-	for _, subscription := range self.subscriptions {
+	for _, subscription := range self.subscriptions[typ.Name()] {
 		go subscription.handle(typ, oldValue, newValue)
 	}
 }
