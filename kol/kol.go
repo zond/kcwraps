@@ -29,6 +29,15 @@ func (self Id) String() string {
 	return base64.URLEncoding.EncodeToString(self)
 }
 
+func DecodeId(s string) (result Id, err error) {
+	b, err := base64.URLEncoding.DecodeString(s)
+	if err != nil {
+		return
+	}
+	result = Id(b)
+	return
+}
+
 func (self Id) MarshalJSON() (b []byte, err error) {
 	return json.Marshal(self.String())
 }
