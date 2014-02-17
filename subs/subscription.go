@@ -1,13 +1,14 @@
 package subs
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"fmt"
-	"github.com/zond/kcwraps/kol"
 	"reflect"
 	"sync"
 	"time"
+
+	"code.google.com/p/go.net/websocket"
+	"github.com/zond/kcwraps/kol"
 )
 
 const (
@@ -237,7 +238,7 @@ type Pack struct {
 /*
 New will return a new Pack for db and ws.
 */
-func New(db *kol.DB, ws *websocket.Conn) *Pack {
+func NewPack(db *kol.DB, ws *websocket.Conn) *Pack {
 	return &Pack{
 		lock: new(sync.Mutex),
 		subs: make(map[string]*Subscription),
