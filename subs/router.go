@@ -14,7 +14,6 @@ import (
 	"time"
 	"github.com/zond/diplicity/common"
 	"github.com/zond/kcwraps/kol"
-	"github.com/zond/kcwraps/subs"
 
 	"crypto/sha512"
 	"crypto/subtle"
@@ -36,6 +35,40 @@ const (
 	Debug
 	Trace
 )
+
+type Context struct {
+	Conn      *websocket.Conn
+	Pack      *Pack
+	Message   *Message
+	Principal string
+	Match     []string
+	Data      JSON
+	Router    *Router
+}
+
+func (self *Context) DB() *kol.DB {
+	return self.Router.DB
+}
+
+func (self *Context) Fatalf(format string, args ...interface{}) {
+	self.Router.Logf(Fatal, "\033[1;31mFATAL\t"+format+"\033[0m", args...)
+}
+
+func (self *Context) Errorf(format string, args ...interface{}) {
+	self.Router.Logf(Error, "\033[31mERROR\t"+format+"\033[0m", args...)
+}
+
+func (self *Context) Infof(format string, args ...interface{}) {
+	self.Router.Logf(Info, "INFO\t"+format, args...)
+}
+
+func (self *Context) Debugf(format string, args ...interface{}) {
+	self.Router.Logf(Debug, "\033[32mDEBUG\t"+format+"\033[0m", args...)
+}
+
+func (self *Context) Tracef(format string, args ...interface{}) {
+	self.Router.Logf(Trace, "\033[1;32mTRACE\t"+format+"\033[0m", args...)
+}
 
 type Token struct {
 	Principal string
@@ -93,16 +126,25 @@ func DecodeToken(s string) (result *Token, err error) {
 	return
 }
 
+type ResourceHandler func(c *Context, match []string, obj JSON) error
+
 type Resource struct {
 	Path     *regexp.Regexp
-	Handlers map[string]func(c *Context, match []string, obj JSON) error
+	Handlers map[string]ResourceHandler
+}
+
+func (self *Resource) Handle(op string, handler ResourceHandler) *Resource {
+	self.Handlers[op] = handler
+	return self
 }
 
 type Resources []*Resource
 
+type RPCHandler func(c *Context, data JSON) (result interface{}, err error)
+
 type RPC struct {
 	Method  string
-	Handler func(c *Context, data JSON) (result interface{}, err error)
+	Handler RPCHandler
 }
 
 type RPCs []*RPC
@@ -176,20 +218,20 @@ func (self *Router) Tracef(format string, args ...interface{}) {
 	self.Logf(Trace, "\033[1;32mTRACE\t"+format+"\033[0m", args...)
 }
 
-func (self *Router) Resource(exp string) *Router {
-	self.Resources = append(self.Resources, &Resource{
+func (self *Router) Resource(exp string) (result *Resource) {
+	result = &Resource{
 		Path: regexp.MustCompile(exp),
-	})
-	return self
+	}
+	self.Resources = append(self.Resources, result)
+	return
 }
 
-type Context struct {
-	Conn      *websocket.Conn
-	Pack      *Pack
-	Message   *Message
-	Principal string
-	Match     []string
-	Data      JSON
+func (self *Router) RPC(method string, handler RPCHandler) *Router {
+	self.RPCs = append(self.RPCs, &RPC{
+		Method:  method,
+		Handler: handler,
+	})
+	return self
 }
 
 func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *Message, principal string) (err error) {
@@ -219,9 +261,9 @@ func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *Messa
 				if resp, err = rpc.Handler(c); err != nil {
 					return
 				}
-				return websocket.JSON.Send(ws, subs.Message{
+				return websocket.JSON.Send(ws, Message{
 					Type: common.RPCType,
-					Method: &subs.Method{
+					Method: &Method{
 						Name: message.Method.Name,
 						Id:   message.Method.Id,
 						Data: resp,
