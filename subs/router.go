@@ -126,7 +126,7 @@ func DecodeToken(s string) (result *Token, err error) {
 	return
 }
 
-type ResourceHandler func(c *Context, match []string, obj JSON) error
+type ResourceHandler func(c *Context) error
 
 type Resource struct {
 	Path     *regexp.Regexp
@@ -140,7 +140,7 @@ func (self *Resource) Handle(op string, handler ResourceHandler) *Resource {
 
 type Resources []*Resource
 
-type RPCHandler func(c *Context, data JSON) (result interface{}, err error)
+type RPCHandler func(c *Context) (result interface{}, err error)
 
 type RPC struct {
 	Method  string
@@ -242,10 +242,13 @@ func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *Messa
 		Principal: principal,
 	}
 	switch message.Type {
-	case SubscribeType, UnsubscribeType, CreateType, UpdateType, DeleteType:
+	case UnsubscribeType:
+		pack.Unsubscribe(message.Object.URI)
+		return
+	case SubscribeType, CreateType, UpdateType, DeleteType:
 		for _, resource := range self.Resources {
 			if match := resource.Path.FindStringSubmatch(message.Object.URI); match != nil {
-				if handler, found := resource.Handlers[mesage.Type]; found {
+				if handler, found := resource.Handlers[message.Type]; found {
 					c.Match = match
 					c.Data = JSON{message.Object.Data}
 					return handler(c)
