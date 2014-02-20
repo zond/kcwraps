@@ -15,6 +15,10 @@ const (
 	FetchType = "Fetch"
 )
 
+/*
+Prettify will return a nicely indented JSON encoding
+of obj
+*/
 func Prettify(obj interface{}) string {
 	b, err := json.MarshalIndent(obj, "", "  ")
 	if err != nil {
