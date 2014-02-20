@@ -1,8 +1,9 @@
 package kc
 
 import (
-	"bitbucket.org/ww/cabinet"
 	"fmt"
+
+	"bitbucket.org/ww/cabinet"
 )
 
 const (
@@ -87,6 +88,10 @@ func New(path string) (result *DB, err error) {
 	return
 }
 
+/*
+BetweenTransactions will run f at once if the DB is not inside a transaction,
+or run it after the current transaction is finished if it is inside a transaction.
+*/
 func (self *DB) BetweenTransactions(f func(d *DB)) {
 	if self.inTransaction {
 		self.afterTransaction = append(self.afterTransaction, f)
