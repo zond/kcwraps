@@ -42,6 +42,7 @@ type Logger interface {
 
 type Context interface {
 	Logger
+	DB() *kol.DB
 	Conn() *websocket.Conn
 	Pack() *Pack
 	Message() *Message
@@ -54,12 +55,18 @@ type Context interface {
 type ResourceHandler func(c Context) error
 
 type Resource struct {
-	Path     *regexp.Regexp
-	Handlers map[string]ResourceHandler
+	Path          *regexp.Regexp
+	Handlers      map[string]ResourceHandler
+	Authenticated bool
 }
 
 func (self *Resource) Handle(op string, handler ResourceHandler) *Resource {
 	self.Handlers[op] = handler
+	return self
+}
+
+func (self *Resource) Auth() *Resource {
+	self.Authenticated = true
 	return self
 }
 
@@ -68,8 +75,14 @@ type Resources []*Resource
 type RPCHandler func(c Context) (result interface{}, err error)
 
 type RPC struct {
-	Method  string
-	Handler RPCHandler
+	Method        string
+	Handler       RPCHandler
+	Authenticated bool
+}
+
+func (self *RPC) Auth() *RPC {
+	self.Authenticated = true
+	return self
 }
 
 type RPCs []*RPC
@@ -178,31 +191,35 @@ func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *Messa
 		return
 	case SubscribeType, CreateType, UpdateType, DeleteType:
 		for _, resource := range self.Resources {
-			if match := resource.Path.FindStringSubmatch(message.Object.URI); match != nil {
-				if handler, found := resource.Handlers[message.Type]; found {
-					c.match = match
-					c.data = JSON{message.Object.Data}
-					return handler(c)
+			if !resource.Authenticated || principal != "" {
+				if match := resource.Path.FindStringSubmatch(message.Object.URI); match != nil {
+					if handler, found := resource.Handlers[message.Type]; found {
+						c.match = match
+						c.data = JSON{message.Object.Data}
+						return handler(c)
+					}
 				}
 			}
 		}
 		return fmt.Errorf("Unrecognized URI for %+v", message)
 	case RPCType:
 		for _, rpc := range self.RPCs {
-			if rpc.Method == message.Method.Name {
-				var resp interface{}
-				c.data = JSON{message.Method.Data}
-				if resp, err = rpc.Handler(c); err != nil {
-					return
+			if !rpc.Authenticated || principal != "" {
+				if rpc.Method == message.Method.Name {
+					var resp interface{}
+					c.data = JSON{message.Method.Data}
+					if resp, err = rpc.Handler(c); err != nil {
+						return
+					}
+					return websocket.JSON.Send(ws, Message{
+						Type: common.RPCType,
+						Method: &Method{
+							Name: message.Method.Name,
+							Id:   message.Method.Id,
+							Data: resp,
+						},
+					})
 				}
-				return websocket.JSON.Send(ws, Message{
-					Type: common.RPCType,
-					Method: &Method{
-						Name: message.Method.Name,
-						Id:   message.Method.Id,
-						Data: resp,
-					},
-				})
 			}
 		}
 		return fmt.Errorf("Unrecognized Method for %+v", message)
