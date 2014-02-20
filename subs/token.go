@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+/*
+Token handles authentication of the sockets connecting to a router
+*/
 type Token struct {
 	Principal string
 	Timeout   time.Time
@@ -17,8 +20,14 @@ type Token struct {
 	Encoded   string
 }
 
+/*
+Change this...
+*/
 var Secret = "something very secret"
 
+/*
+GetHash calculates a hash for this Token
+*/
 func (self *Token) GetHash() (result []byte, err error) {
 	h := sha512.New()
 	if _, err = h.Write([]byte(fmt.Sprintf("%#v,%v,%#v", self.Principal, self.Timeout.UnixNano(), Secret))); err != nil {
@@ -28,6 +37,9 @@ func (self *Token) GetHash() (result []byte, err error) {
 	return
 }
 
+/*
+Encode will set the Encoded field for this Token to an encoded version of itself
+*/
 func (self *Token) Encode() (err error) {
 	self.Encoded = ""
 	if self.Hash, err = self.GetHash(); err != nil {
@@ -46,6 +58,9 @@ func (self *Token) Encode() (err error) {
 	return
 }
 
+/*
+DecodeToken unpacks s into a Token, that it validates (hash and timeout) and returns
+*/
 func DecodeToken(s string) (result *Token, err error) {
 	dec := gob.NewDecoder(base64.NewDecoder(base64.URLEncoding, bytes.NewBufferString(s)))
 	tok := &Token{}
