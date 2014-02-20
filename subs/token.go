@@ -35,7 +35,7 @@ func (self *Token) Encode() (err error) {
 	}
 	buf := &bytes.Buffer{}
 	baseEnc := base64.NewEncoder(base64.URLEncoding, buf)
-	gobEnc := gob.NewEncoder(base64.NewEncoder(base64.URLEncoding, buf))
+	gobEnc := gob.NewEncoder(baseEnc)
 	if err = gobEnc.Encode(self); err != nil {
 		return
 	}
@@ -52,8 +52,8 @@ func DecodeToken(s string) (result *Token, err error) {
 	if err = dec.Decode(tok); err != nil {
 		return
 	}
-	if tok.Timeout.After(time.Now()) {
-		err = fmt.Errorf("Token %+v is timed out")
+	if tok.Timeout.Before(time.Now()) {
+		err = fmt.Errorf("Token %+v is timed out", tok)
 		return
 	}
 	correctHash, err := tok.GetHash()

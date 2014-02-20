@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"code.google.com/p/go.net/websocket"
-	"github.com/zond/diplicity/common"
 	"github.com/zond/kcwraps/kol"
 )
 
@@ -22,14 +21,15 @@ const (
 	CreateType      = "Create"
 	DeleteType      = "Delete"
 	RPCType         = "RPC"
+	ErrorType       = "Error"
 )
 
 const (
-	Fatal = iota
-	Error
-	Info
-	Debug
-	Trace
+	FatalLevel = iota
+	ErrorLevel
+	InfoLevel
+	DebugLevel
+	TraceLevel
 )
 
 type Logger interface {
@@ -57,16 +57,18 @@ type ResourceHandler func(c Context) error
 type Resource struct {
 	Path          *regexp.Regexp
 	Handlers      map[string]ResourceHandler
-	Authenticated bool
+	Authenticated map[string]bool
+	lastOp        string
 }
 
 func (self *Resource) Handle(op string, handler ResourceHandler) *Resource {
 	self.Handlers[op] = handler
+	self.lastOp = op
 	return self
 }
 
 func (self *Resource) Auth() *Resource {
-	self.Authenticated = true
+	self.Authenticated[self.lastOp] = true
 	return self
 }
 
@@ -118,7 +120,7 @@ func (self *Router) DefaultOnConnect(ws *websocket.Conn, principal string) {
 func (self *Router) DefaultOnUnsubscribeFactory(ws *websocket.Conn, principal string) func(s *Subscription, reason interface{}) {
 	return func(s *Subscription, reason interface{}) {
 		self.Debugf("\t%v\t%v\t%v\t%v\t%v\t[unsubscribing]", ws.Request().URL.Path, ws.Request().RemoteAddr, principal, s.URI(), reason)
-		if self.LogLevel > Trace {
+		if self.LogLevel > TraceLevel {
 			self.Tracef("%s", debug.Stack())
 		}
 	}
@@ -143,39 +145,42 @@ func (self *Router) Logf(level int, format string, args ...interface{}) {
 }
 
 func (self *Router) Fatalf(format string, args ...interface{}) {
-	self.Logf(Fatal, "\033[1;31mFATAL\t"+format+"\033[0m", args...)
+	self.Logf(FatalLevel, "\033[1;31mFATAL\t"+format+"\033[0m", args...)
 }
 
 func (self *Router) Errorf(format string, args ...interface{}) {
-	self.Logf(Error, "\033[31mERROR\t"+format+"\033[0m", args...)
+	self.Logf(ErrorLevel, "\033[31mERROR\t"+format+"\033[0m", args...)
 }
 
 func (self *Router) Infof(format string, args ...interface{}) {
-	self.Logf(Info, "INFO\t"+format, args...)
+	self.Logf(InfoLevel, "INFO\t"+format, args...)
 }
 
 func (self *Router) Debugf(format string, args ...interface{}) {
-	self.Logf(Debug, "\033[32mDEBUG\t"+format+"\033[0m", args...)
+	self.Logf(DebugLevel, "\033[32mDEBUG\t"+format+"\033[0m", args...)
 }
 
 func (self *Router) Tracef(format string, args ...interface{}) {
-	self.Logf(Trace, "\033[1;32mTRACE\t"+format+"\033[0m", args...)
+	self.Logf(TraceLevel, "\033[1;32mTRACE\t"+format+"\033[0m", args...)
 }
 
 func (self *Router) Resource(exp string) (result *Resource) {
 	result = &Resource{
-		Path: regexp.MustCompile(exp),
+		Path:          regexp.MustCompile(exp),
+		Handlers:      map[string]ResourceHandler{},
+		Authenticated: map[string]bool{},
 	}
 	self.Resources = append(self.Resources, result)
 	return
 }
 
-func (self *Router) RPC(method string, handler RPCHandler) *Router {
-	self.RPCs = append(self.RPCs, &RPC{
+func (self *Router) RPC(method string, handler RPCHandler) (result *RPC) {
+	result = &RPC{
 		Method:  method,
 		Handler: handler,
-	})
-	return self
+	}
+	self.RPCs = append(self.RPCs, result)
+	return
 }
 
 func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *Message, principal string) (err error) {
@@ -184,6 +189,7 @@ func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *Messa
 		pack:      pack,
 		message:   message,
 		principal: principal,
+		router:    self,
 	}
 	switch message.Type {
 	case UnsubscribeType:
@@ -191,9 +197,9 @@ func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *Messa
 		return
 	case SubscribeType, CreateType, UpdateType, DeleteType:
 		for _, resource := range self.Resources {
-			if !resource.Authenticated || principal != "" {
-				if match := resource.Path.FindStringSubmatch(message.Object.URI); match != nil {
-					if handler, found := resource.Handlers[message.Type]; found {
+			if !resource.Authenticated[message.Type] || principal != "" {
+				if handler, found := resource.Handlers[message.Type]; found {
+					if match := resource.Path.FindStringSubmatch(message.Object.URI); match != nil {
 						c.match = match
 						c.data = JSON{message.Object.Data}
 						return handler(c)
@@ -201,7 +207,7 @@ func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *Messa
 				}
 			}
 		}
-		return fmt.Errorf("Unrecognized URI for %+v", message)
+		return fmt.Errorf("Unrecognized URI for %v", Prettify(message))
 	case RPCType:
 		for _, rpc := range self.RPCs {
 			if !rpc.Authenticated || principal != "" {
@@ -212,7 +218,7 @@ func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *Messa
 						return
 					}
 					return websocket.JSON.Send(ws, Message{
-						Type: common.RPCType,
+						Type: RPCType,
 						Method: &Method{
 							Name: message.Method.Name,
 							Id:   message.Method.Id,
@@ -222,20 +228,18 @@ func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *Messa
 				}
 			}
 		}
-		return fmt.Errorf("Unrecognized Method for %+v", message)
+		return fmt.Errorf("Unrecognized Method for %v", Prettify(message))
 	}
-	return fmt.Errorf("Unknown message type for %+v", message)
-}
-
-type ErrorMessage struct {
-	Cause interface{}
-	Err   error
+	return fmt.Errorf("Unknown message type for %v", Prettify(message))
 }
 
 func (self *Router) DeliverError(ws *websocket.Conn, cause interface{}, err error) {
-	if err = websocket.JSON.Send(ws, ErrorMessage{
-		Cause: cause,
-		Err:   err,
+	if err = websocket.JSON.Send(ws, &Message{
+		Type: ErrorType,
+		Error: &Error{
+			Cause: cause,
+			Error: err,
+		},
 	}); err != nil {
 		self.Errorf("%v", err)
 	}
@@ -280,12 +284,12 @@ func (self *Router) handleConnection(ws *websocket.Conn) {
 			if message.Object != nil {
 				self.Debugf("\t%v\t%v\t%v\t%v\t%v\t%v <-", ws.Request().URL.Path, ws.Request().RemoteAddr, principal, message.Type, message.Object.URI, time.Now().Sub(start))
 			}
-			if self.LogLevel > Trace {
+			if self.LogLevel > TraceLevel {
 				if message.Method != nil && message.Method.Data != nil {
-					self.Tracef("%+v", common.Prettify(message.Method.Data))
+					self.Tracef("%+v", Prettify(message.Method.Data))
 				}
 				if message.Object != nil && message.Object.Data != nil {
-					self.Tracef("%+v", common.Prettify(message.Object.Data))
+					self.Tracef("%+v", Prettify(message.Object.Data))
 				}
 			}
 		} else if err == io.EOF {

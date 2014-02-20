@@ -15,6 +15,14 @@ const (
 	FetchType = "Fetch"
 )
 
+func Prettify(obj interface{}) string {
+	b, err := json.MarshalIndent(obj, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
 /*
 JSON wraps anything that is a JSON object.
 */
@@ -69,6 +77,12 @@ type Message struct {
 	Type   string
 	Object *Object `json:",omitempty"`
 	Method *Method `json:",omitempty"`
+	Error  *Error  `json:",omitempty"`
+}
+
+type Error struct {
+	Cause interface{}
+	Error error
 }
 
 /*

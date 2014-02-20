@@ -48,21 +48,21 @@ func (self *defaultContext) Router() *Router {
 }
 
 func (self *defaultContext) Fatalf(format string, args ...interface{}) {
-	self.router.Logf(Fatal, "\033[1;31mFATAL\t"+format+"\033[0m", args...)
+	self.router.Logf(FatalLevel, "\033[1;31mFATAL\t"+format+"\033[0m", args...)
 }
 
 func (self *defaultContext) Errorf(format string, args ...interface{}) {
-	self.router.Logf(Error, "\033[31mERROR\t"+format+"\033[0m", args...)
+	self.router.Logf(ErrorLevel, "\033[31mERROR\t"+format+"\033[0m", args...)
 }
 
 func (self *defaultContext) Infof(format string, args ...interface{}) {
-	self.router.Logf(Info, "INFO\t"+format, args...)
+	self.router.Logf(InfoLevel, "INFO\t"+format, args...)
 }
 
 func (self *defaultContext) Debugf(format string, args ...interface{}) {
-	self.router.Logf(Debug, "\033[32mDEBUG\t"+format+"\033[0m", args...)
+	self.router.Logf(DebugLevel, "\033[32mDEBUG\t"+format+"\033[0m", args...)
 }
 
 func (self *defaultContext) Tracef(format string, args ...interface{}) {
-	self.router.Logf(Trace, "\033[1;32mTRACE\t"+format+"\033[0m", args...)
+	self.router.Logf(TraceLevel, "\033[1;32mTRACE\t"+format+"\033[0m", args...)
 }
