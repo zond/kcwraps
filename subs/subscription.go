@@ -84,6 +84,9 @@ type Message struct {
 	Error  *Error  `json:",omitempty"`
 }
 
+/*
+Error encapsulates an error
+*/
 type Error struct {
 	Cause interface{}
 	Error error
