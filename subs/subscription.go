@@ -1,7 +1,6 @@
 package subs
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -9,105 +8,8 @@ import (
 
 	"code.google.com/p/go.net/websocket"
 	"github.com/zond/kcwraps/kol"
+	"github.com/zond/wsubs/gosubs"
 )
-
-const (
-	FetchType = "Fetch"
-)
-
-/*
-Prettify will return a nicely indented JSON encoding
-of obj
-*/
-func Prettify(obj interface{}) string {
-	b, err := json.MarshalIndent(obj, "", "  ")
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
-}
-
-/*
-JSON wraps anything that is a JSON object.
-*/
-type JSON struct {
-	Data interface{}
-}
-
-/*
-Get returns the value under key as another JSON.
-*/
-func (self JSON) Get(key string) JSON {
-	return JSON{self.Data.(map[string]interface{})[key]}
-}
-
-/*
-Overwrite will JSON encode itself and decode it into dest.
-*/
-func (self JSON) Overwrite(dest interface{}) {
-	b, err := json.Marshal(self.Data)
-	if err != nil {
-		panic(err)
-	}
-	err = json.Unmarshal(b, dest)
-	if err != nil {
-		panic(err)
-	}
-}
-
-/*
-GetStringSLice returns the value under key as a string slice.
-*/
-func (self JSON) GetStringSlice(key string) (result []string) {
-	is := self.Data.(map[string]interface{})[key].([]interface{})
-	result = make([]string, len(is))
-	for index, i := range is {
-		result[index] = i.(string)
-	}
-	return
-}
-
-/*
-GetString returns the value under key as a string.
-*/
-func (self JSON) GetString(key string) string {
-	return self.Data.(map[string]interface{})[key].(string)
-}
-
-/*
-Message wraps Objects in JSON messages.
-*/
-type Message struct {
-	Type   string
-	Object *Object `json:",omitempty"`
-	Method *Method `json:",omitempty"`
-	Error  *Error  `json:",omitempty"`
-}
-
-/*
-Error encapsulates an error
-*/
-type Error struct {
-	Cause interface{}
-	Error error
-}
-
-/*
-Object is used to send JSON messages to subscribing WebSockets.
-*/
-type Object struct {
-	URI  string
-	Data interface{} `json:",omitempty"`
-}
-
-/*
-Method is used to send JSON RPC requests.
-*/
-type Method struct {
-	Name string
-	Id   string
-	Data interface{} `json:",omitempty"`
-}
 
 /*
 Subscription encapsulates a subscription by a WebSocket on an object or a query.
@@ -153,9 +55,9 @@ Send will send a message through the WebSocket of this Subscription.
 Message.Type will be op, Message.Object.URI will be the uri of this subscription and Message.Object.Data will be the JSON representation of i.
 */
 func (self *Subscription) Send(i interface{}, op string) (err error) {
-	return websocket.JSON.Send(self.pack.ws, Message{
+	return websocket.JSON.Send(self.pack.ws, gosubs.Message{
 		Type: op,
-		Object: &Object{
+		Object: &gosubs.Object{
 			Data: i,
 			URI:  self.uri,
 		},
@@ -221,10 +123,10 @@ func (self *Subscription) Subscribe(object interface{}) error {
 		} else {
 			if self.Logger != nil {
 				defer func() {
-					self.Logger(object, FetchType, time.Now().Sub(start))
+					self.Logger(object, gosubs.FetchType, time.Now().Sub(start))
 				}()
 			}
-			return self.Call(object, FetchType)
+			return self.Call(object, gosubs.FetchType)
 		}
 	} else {
 		slice := reflect.New(reflect.SliceOf(reflect.TypeOf(object))).Interface()
@@ -234,10 +136,10 @@ func (self *Subscription) Subscribe(object interface{}) error {
 			iface := reflect.ValueOf(slice).Elem().Interface()
 			if self.Logger != nil {
 				defer func() {
-					self.Logger(iface, FetchType, time.Now().Sub(start))
+					self.Logger(iface, gosubs.FetchType, time.Now().Sub(start))
 				}()
 			}
-			return self.Call(iface, FetchType)
+			return self.Call(iface, gosubs.FetchType)
 		}
 	}
 }
