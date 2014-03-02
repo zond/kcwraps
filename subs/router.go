@@ -18,6 +18,7 @@ type Context interface {
 	gosubs.Context
 	DB() *kol.DB
 	Pack() *Pack
+	BetweenTransactions(func(c Context))
 	Transact(func(c Context) error) error
 }
 

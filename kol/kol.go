@@ -152,6 +152,17 @@ func (self *DB) Close() error {
 }
 
 /*
+BetweenTransactions will run f at once if the DB is not inside a transaction,
+or run it after the current transaction is finished if it is inside a transaction.
+*/
+func (self DB) BetweenTransactions(f func(db *DB)) {
+	self.db.BetweenTransactions(func(d *kc.DB) {
+		self.db = d
+		f(&self)
+	})
+}
+
+/*
 Transact will execute f, with d being a *DB executing within a transactional context.
 
 If self is already in a transactional context, no new transaction will be created,

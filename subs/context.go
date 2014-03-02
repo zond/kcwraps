@@ -12,11 +12,17 @@ type defaultContext struct {
 	db     *kol.DB
 }
 
-func (self *defaultContext) Transact(f func(c Context) error) error {
+func (self defaultContext) BetweenTransactions(f func(c Context)) {
+	self.db.BetweenTransactions(func(d *kol.DB) {
+		self.db = d
+		f(&self)
+	})
+}
+
+func (self defaultContext) Transact(f func(c Context) error) error {
 	return self.db.Transact(func(d *kol.DB) error {
-		cpy := *self
-		cpy.db = d
-		return f(&cpy)
+		self.db = d
+		return f(&self)
 	})
 }
 
