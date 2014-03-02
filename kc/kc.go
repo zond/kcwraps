@@ -129,6 +129,7 @@ func (self *DB) Transact(f func(d *DB) error) (err error) {
 				for _, callback := range cpy.afterTransaction {
 					callback(self)
 				}
+				cpy.afterTransaction = nil
 			} else {
 				self.EndTran(false)
 			}
