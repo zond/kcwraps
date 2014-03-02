@@ -11,12 +11,6 @@ type defaultContext struct {
 	router *Router
 }
 
-func (self *defaultContext) Clean() *defaultContext {
-	self.Context = self.Context.Clean()
-	self.pack = nil
-	return self
-}
-
 func (self *defaultContext) DB() *kol.DB {
 	return self.router.DB
 }
