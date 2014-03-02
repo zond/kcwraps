@@ -9,10 +9,19 @@ type defaultContext struct {
 	gosubs.Context
 	pack   *Pack
 	router *Router
+	db     *kol.DB
+}
+
+func (self *defaultContext) Transact(f func(c Context) error) error {
+	return self.db.Transact(func(d *kol.DB) error {
+		cpy := *self
+		cpy.db = d
+		return f(&cpy)
+	})
 }
 
 func (self *defaultContext) DB() *kol.DB {
-	return self.router.DB
+	return self.db
 }
 
 func (self *defaultContext) Pack() *Pack {

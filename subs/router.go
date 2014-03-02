@@ -18,6 +18,7 @@ type Context interface {
 	gosubs.Context
 	DB() *kol.DB
 	Pack() *Pack
+	Transact(func(c Context) error) error
 }
 
 /*
@@ -134,6 +135,7 @@ func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *gosub
 		Context: gosubs.NewContext(ws, message, principal, self),
 		pack:    pack,
 		router:  self,
+		db:      self.DB,
 	}
 	switch message.Type {
 	case gosubs.UnsubscribeType:
