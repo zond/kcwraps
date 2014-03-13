@@ -12,17 +12,6 @@ import (
 )
 
 /*
-Context describes a single WebSocket message and its environment
-*/
-type Context interface {
-	gosubs.Context
-	DB() *kol.DB
-	Pack() *Pack
-	BetweenTransactions(func(c Context))
-	Transact(func(c Context) error) error
-}
-
-/*
 Router controls incoming WebSocket messages
 */
 type Router struct {

@@ -5,6 +5,17 @@ import (
 	"github.com/zond/wsubs/gosubs"
 )
 
+/*
+Context describes a single WebSocket message and its environment
+*/
+type Context interface {
+	gosubs.Context
+	DB() *kol.DB
+	Pack() *Pack
+	BetweenTransactions(func(c Context))
+	Transact(func(c Context) error) error
+}
+
 type defaultContext struct {
 	gosubs.Context
 	pack   *Pack
