@@ -39,7 +39,7 @@ DefaultonUnsubscribeFactory will return functions that just log the unsubscribin
 */
 func (self *Router) DefaultOnUnsubscribeFactory(ws *websocket.Conn, principal string) func(s *Subscription, reason interface{}) {
 	return func(s *Subscription, reason interface{}) {
-		self.Debugf("\t%v\t%v\t%v\t%v\t%v\t[unsubscribing]", ws.Request().URL.Path, ws.Request().RemoteAddr, principal, s.Name(), reason)
+		self.Debugf("%v\t%v\t%v\t%v\t%v\t[unsubscribing]", ws.Request().URL.Path, ws.Request().RemoteAddr, principal, s.Name(), reason)
 		if self.LogLevel > gosubs.TraceLevel {
 			self.Tracef("%s", debug.Stack())
 		}
@@ -51,7 +51,7 @@ DefaultEventLoggerFactory will return functions that just log the bubbling event
 */
 func (self *Router) DefaultEventLoggerFactory(ws *websocket.Conn, principal string) func(name string, i interface{}, op string, dur time.Duration) {
 	return func(name string, i interface{}, op string, dur time.Duration) {
-		self.Debugf("\t%v\t%v\t%v\t%v\t%v\t%v ->", ws.Request().URL.Path, ws.Request().RemoteAddr, principal, op, name, dur)
+		self.Debugf("%v\t%v\t%v\t%v\t%v\t%v ->", ws.Request().URL.Path, ws.Request().RemoteAddr, principal, op, name, dur)
 	}
 }
 
