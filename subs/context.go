@@ -16,6 +16,15 @@ type Context interface {
 	Transact(func(c Context) error) error
 }
 
+func NewContext(c gosubs.Context, pack *Pack, router *Router, db *kol.DB) Context {
+	return &defaultContext{
+		Context: c,
+		pack:    pack,
+		router:  router,
+		db:      router.DB,
+	}
+}
+
 type defaultContext struct {
 	gosubs.Context
 	pack   *Pack

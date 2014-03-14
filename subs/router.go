@@ -121,12 +121,7 @@ func (self *Router) RPC(method string, handler RPCHandler) (result *gosubs.RPC) 
 }
 
 func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *gosubs.Message, principal string) (err error) {
-	c := &defaultContext{
-		Context: gosubs.NewContext(ws, message, principal, self),
-		pack:    pack,
-		router:  self,
-		db:      self.DB,
-	}
+	c := NewContext(gosubs.NewContext(ws, message, principal, self), pack, self, self.DB)
 	switch message.Type {
 	case gosubs.UnsubscribeType:
 		pack.Unsubscribe(message.Object.URI)
