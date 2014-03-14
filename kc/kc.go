@@ -73,6 +73,11 @@ type DB struct {
 	afterTransaction []func(db *DB)
 }
 
+func (self *DB) String() string {
+	p, _ := self.KCDB.Path()
+	return fmt.Sprintf("&kc.DB@%p{path:%#v, inTransaction:%v,afterTransaction:%v}", self, p, self.inTransaction, self.afterTransaction)
+}
+
 /*
 New returns a new DB. Since the whole point of this package requires the DB to have a tree database, the
 path gets '.kct' appended to ensure that it will be a tree database. Thus: don't provide a suffix to your path.

@@ -106,6 +106,10 @@ type DB struct {
 	subscriptions      map[string]map[string]*Subscription
 }
 
+func (self *DB) String() string {
+	return fmt.Sprintf("&kol.DB@%p{db:%v,subscriptions:%v}", self, self.db, self.subscriptions)
+}
+
 // Must returns a new object layer with a databsae at the specified path, or panics.
 func Must(path string) *DB {
 	if result, err := New(path); err == nil {
