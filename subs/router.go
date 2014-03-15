@@ -125,6 +125,7 @@ func (self *Router) handleMessage(ws *websocket.Conn, pack *Pack, message *gosub
 	switch message.Type {
 	case gosubs.UnsubscribeType:
 		pack.Unsubscribe(message.Object.URI)
+		self.RemoveSubscriber(c.Principal(), message.Object.URI)
 		return
 	case gosubs.SubscribeType, gosubs.CreateType, gosubs.UpdateType, gosubs.DeleteType:
 		return self.HandleResourceMessage(c)
