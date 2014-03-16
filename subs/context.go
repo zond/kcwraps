@@ -6,12 +6,19 @@ import (
 )
 
 /*
-Context describes a single WebSocket message and its environment
+SubContext describes a relation to a subscription environment and its database
+*/
+type SubContext interface {
+	gosubs.Context
+	Pack() *Pack
+	DB() *kol.DB
+}
+
+/*
+Context describes a relation to a subscription environment and its database, as well as some handy transaction utilities
 */
 type Context interface {
-	gosubs.Context
-	DB() *kol.DB
-	Pack() *Pack
+	SubContext
 	BetweenTransactions(func(c Context))
 	Transact(func(c Context) error) error
 }
