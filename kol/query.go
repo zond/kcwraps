@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
+
 	"github.com/zond/kcwraps/kc"
 	"github.com/zond/setop"
-	"reflect"
 )
 
+// qFilters are used to filter queries
 type qFilter interface {
 	source(typ reflect.Type) (result setop.SetOpSource, err error)
 	match(db *DB, typ reflect.Type, value reflect.Value) (result bool, err error)
@@ -171,6 +173,7 @@ type Query struct {
 	typ          reflect.Type
 	intersection qFilter
 	difference   qFilter
+	limit        int
 }
 
 /*
@@ -251,6 +254,7 @@ func (self *Query) each(f func(elementPointer reflect.Value) bool) error {
 			Merge: setop.First,
 		}
 	}
+	limit := self.limit
 	for _, kv := range self.db.db.SetOp(&setop.SetExpression{
 		Op: op,
 	}) {
@@ -260,6 +264,11 @@ func (self *Query) each(f func(elementPointer reflect.Value) bool) error {
 				break
 			}
 		}
+		if limit == 1 {
+			break
+		} else if limit > 1 {
+			limit--
+		}
 	}
 	return nil
 }
@@ -267,6 +276,12 @@ func (self *Query) each(f func(elementPointer reflect.Value) bool) error {
 // Except will add a filter excluding matching items from the results of this query.
 func (self *Query) Except(f qFilter) *Query {
 	self.difference = f
+	return self
+}
+
+// Limit will limit the number of matches returned
+func (self *Query) Limit(l int) *Query {
+	self.limit = l
 	return self
 }
 
