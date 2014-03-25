@@ -10,14 +10,14 @@ import (
 	"github.com/zond/setop"
 )
 
-// qFilters are used to filter queries
-type qFilter interface {
+// QFilters are used to filter queries
+type QFilter interface {
 	source(typ reflect.Type) (result setop.SetOpSource, err error)
 	match(db *DB, typ reflect.Type, value reflect.Value) (result bool, err error)
 }
 
-// Or is a qFilter that defineds an OR operation.
-type Or []qFilter
+// Or is a QFilter that defineds an OR operation.
+type Or []QFilter
 
 func (self Or) source(typ reflect.Type) (result setop.SetOpSource, err error) {
 	op := setop.SetOp{
@@ -44,8 +44,8 @@ func (self Or) match(db *DB, typ reflect.Type, value reflect.Value) (result bool
 	return
 }
 
-// And is a qFilter that defines an AND operation.
-type And []qFilter
+// And is a QFilter that defines an AND operation.
+type And []QFilter
 
 func (self And) source(typ reflect.Type) (result setop.SetOpSource, err error) {
 	op := setop.SetOp{
@@ -73,7 +73,7 @@ func (self And) match(db *DB, typ reflect.Type, value reflect.Value) (result boo
 	return
 }
 
-// Join is a qFilter that defines a relationship to another type.
+// Join is a QFilter that defines a relationship to another type.
 // It will match all instances connected to something looking like
 // Match (specifically the bit identified by MatchField) having an
 // Id equal to the value of the IdField of the returned instance.
@@ -130,7 +130,7 @@ func (self Join) match(db *DB, typ reflect.Type, value reflect.Value) (result bo
 	return
 }
 
-// Equals is a qFilter that defines an == operation.
+// Equals is a QFilter that defines an == operation.
 type Equals struct {
 	Field string
 	Value interface{}
@@ -171,8 +171,8 @@ Example: db.Query().Filter(And{Equals{"Name", "John"}, Or{Equals{"Surname", "Doe
 type Query struct {
 	db           *DB
 	typ          reflect.Type
-	intersection qFilter
-	difference   qFilter
+	intersection QFilter
+	difference   QFilter
 	limit        int
 }
 
@@ -274,7 +274,7 @@ func (self *Query) each(f func(elementPointer reflect.Value) bool) error {
 }
 
 // Except will add a filter excluding matching items from the results of this query.
-func (self *Query) Except(f qFilter) *Query {
+func (self *Query) Except(f QFilter) *Query {
 	self.difference = f
 	return self
 }
@@ -286,7 +286,7 @@ func (self *Query) Limit(l int) *Query {
 }
 
 // Where will add a filter limiting the results of this query to matching items.
-func (self *Query) Where(f qFilter) *Query {
+func (self *Query) Where(f QFilter) *Query {
 	self.intersection = f
 	return self
 }
