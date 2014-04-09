@@ -250,6 +250,23 @@ func (self *DB) save(id []byte, typ reflect.Type, obj interface{}) error {
 	return self.db.Set(kc.Keyify(primaryKey, typ.Name(), id), bytes)
 }
 
+/*
+Index will re-index object in the database.
+
+Obj must be a pointer to a struct having a []byte Id field.
+*/
+func (self *DB) Index(obj interface{}) error {
+	value, id, err := identify(obj)
+	if err != nil {
+		return err
+	}
+	idBytes := id.Bytes()
+	if idBytes == nil {
+		return fmt.Errorf("Can't Index %+v without Id", obj)
+	}
+	return self.index(idBytes, value, value.Type())
+}
+
 func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj interface{}) error {
 	if updatedAt := value.FieldByName(updatedAtField); updatedAt.IsValid() && updatedAt.Type() == timeType {
 		updatedAt.Set(reflect.ValueOf(time.Now()))
