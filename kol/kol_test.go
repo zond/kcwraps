@@ -584,17 +584,23 @@ type ExampleStruct struct {
 }
 
 func ExampleCRUD() {
+	// open the databse file "example" and panic if fail
 	d := Must("example")
+	// clear the database from previous example runs
 	d.Clear()
+	// create an example value without id
 	exampleValue := &ExampleStruct{
 		SomeField: "some value",
 	}
+	// put it in the database. this will give it an id
 	if err := d.Set(exampleValue); err != nil {
 		panic(err)
 	}
+	// create an empty value, but with an id
 	loadedValue := &ExampleStruct{
 		Id: exampleValue.Id,
 	}
+	// load it from the database. this will fill out the values using whatever is in the database with this id
 	if err := d.Get(loadedValue); err != nil {
 		panic(err)
 	}
