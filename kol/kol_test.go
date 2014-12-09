@@ -577,6 +577,32 @@ func isAlmost(t1, t2 time.Time) bool {
 	return true
 }
 
+type ExampleStruct struct {
+	Id             []byte
+	SomeField      string
+	SomeOtherField int
+}
+
+func ExampleCRUD() {
+	d := Must("example")
+	d.Clear()
+	exampleValue := &ExampleStruct{
+		SomeField: "some value",
+	}
+	if err := d.Set(exampleValue); err != nil {
+		panic(err)
+	}
+	loadedValue := &ExampleStruct{
+		Id: exampleValue.Id,
+	}
+	if err := d.Get(loadedValue); err != nil {
+		panic(err)
+	}
+	fmt.Println(loadedValue.SomeField)
+	// Output:
+	// some value
+}
+
 func TestCreatedAt(t *testing.T) {
 	d, err := New("test")
 	if err != nil {
