@@ -159,10 +159,13 @@ func (self *DB) Close() error {
 BetweenTransactions will run f at once if the DB is not inside a transaction,
 or run it after the current transaction is finished if it is inside a transaction.
 */
-func (self DB) BetweenTransactions(f func(db *DB)) {
-	self.db.BetweenTransactions(func(d *kc.DB) {
+func (self DB) BetweenTransactions(f func(*DB) error) (err error) {
+	return self.db.BetweenTransactions(func(d *kc.DB) (err error) {
 		self.db = d
-		f(&self)
+		if err = f(&self); err != nil {
+			return
+		}
+		return
 	})
 }
 
@@ -211,9 +214,11 @@ func (self *DB) Del(obj interface{}) (err error) {
 		}
 		return nil
 	}); err == nil {
-		self.db.BetweenTransactions(func(d *kc.DB) {
-			self.emit(typ, &value, nil)
-		})
+		if err = self.db.BetweenTransactions(func(d *kc.DB) (err error) {
+			return self.emit(typ, &value, nil)
+		}); err != nil {
+			return
+		}
 	}
 	return
 }
@@ -267,45 +272,49 @@ func (self *DB) Index(obj interface{}) error {
 	return self.index(idBytes, value, value.Type())
 }
 
-func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj interface{}) error {
+func (self *DB) create(id []byte, value reflect.Value, typ reflect.Type, obj interface{}) (err error) {
 	if updatedAt := value.FieldByName(updatedAtField); updatedAt.IsValid() && updatedAt.Type() == timeType {
 		updatedAt.Set(reflect.ValueOf(time.Now()))
 	}
 	if createdAt := value.FieldByName(createdAtField); createdAt.IsValid() && createdAt.Type() == timeType {
 		createdAt.Set(reflect.ValueOf(time.Now()))
 	}
-	if err := self.Transact(func(self *DB) error {
+	if err = self.Transact(func(self *DB) error {
 		if err := self.index(id, value, typ); err != nil {
 			return err
 		}
 		return self.save(id, typ, obj)
 	}); err != nil {
-		return err
+		return
 	}
-	self.db.BetweenTransactions(func(d *kc.DB) {
-		self.emit(typ, nil, &value)
-	})
+	if err = self.db.BetweenTransactions(func(d *kc.DB) (err error) {
+		return self.emit(typ, nil, &value)
+	}); err != nil {
+		return
+	}
 	return nil
 }
 
-func (self *DB) update(id []byte, oldValue, objValue reflect.Value, typ reflect.Type, obj interface{}) error {
+func (self *DB) update(id []byte, oldValue, objValue reflect.Value, typ reflect.Type, obj interface{}) (err error) {
 	if updatedAt := objValue.FieldByName(updatedAtField); updatedAt.IsValid() && updatedAt.Type() == timeType {
 		updatedAt.Set(reflect.ValueOf(time.Now()))
 	}
-	if err := self.Transact(func(self *DB) error {
-		if err := self.deIndex(id, oldValue, typ); err != nil {
-			return err
+	if err = self.Transact(func(self *DB) (err error) {
+		if err = self.deIndex(id, oldValue, typ); err != nil {
+			return
 		}
-		if err := self.index(id, objValue, typ); err != nil {
-			return err
+		if err = self.index(id, objValue, typ); err != nil {
+			return
 		}
 		return self.save(id, typ, obj)
 	}); err != nil {
-		return err
+		return
 	}
-	self.db.BetweenTransactions(func(d *kc.DB) {
-		self.emit(typ, &oldValue, &objValue)
-	})
+	if err = self.db.BetweenTransactions(func(d *kc.DB) (err error) {
+		return self.emit(typ, &oldValue, &objValue)
+	}); err != nil {
+		return
+	}
 	return nil
 }
 

@@ -19,8 +19,8 @@ Context describes a relation to a subscription environment and its database, as 
 */
 type Context interface {
 	SubContext
-	BetweenTransactions(func(c Context))
-	Transact(func(c Context) error) error
+	BetweenTransactions(func(Context) error) error
+	Transact(func(Context) error) error
 }
 
 func NewContext(c gosubs.Context, pack *Pack, router *Router, db *kol.DB) Context {
@@ -39,10 +39,10 @@ type defaultContext struct {
 	db     *kol.DB
 }
 
-func (self defaultContext) BetweenTransactions(f func(c Context)) {
-	self.db.BetweenTransactions(func(d *kol.DB) {
+func (self defaultContext) BetweenTransactions(f func(Context) error) (err error) {
+	return self.db.BetweenTransactions(func(d *kol.DB) (err error) {
 		self.db = d
-		f(&self)
+		return f(&self)
 	})
 }
 

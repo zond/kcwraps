@@ -186,23 +186,42 @@ EmitUpdate will trigger an Update event on obj.
 Useful when chaining events, such as when an update of an inner objects
 should cause an updated of an outer object.
 */
-func (self *DB) EmitUpdate(obj interface{}) {
+func (self *DB) EmitUpdate(obj interface{}) (err error) {
 	value := reflect.ValueOf(obj).Elem()
-	self.emit(reflect.TypeOf(value.Interface()), &value, &value)
+	return self.emit(reflect.TypeOf(value.Interface()), &value, &value)
 }
 
-func (self *DB) emit(typ reflect.Type, oldValue, newValue *reflect.Value) {
+func callErr(f reflect.Value, args []reflect.Value) (err error) {
+	res := f.Call(args)
+	if len(res) > 0 {
+		if e, ok := res[len(res)-1].Interface().(error); ok {
+			if !res[len(res)-1].IsNil() {
+				err = e
+				return
+			}
+		}
+	}
+	return
+}
+
+func (self *DB) emit(typ reflect.Type, oldValue, newValue *reflect.Value) (err error) {
 	if oldValue != nil && newValue != nil {
 		if chain := newValue.Addr().MethodByName("Updated"); chain.IsValid() {
-			chain.Call([]reflect.Value{reflect.ValueOf(self), oldValue.Addr()})
+			if err = callErr(chain, []reflect.Value{reflect.ValueOf(self), oldValue.Addr()}); err != nil {
+				return
+			}
 		}
 	} else if newValue != nil {
 		if chain := newValue.Addr().MethodByName("Created"); chain.IsValid() {
-			chain.Call([]reflect.Value{reflect.ValueOf(self)})
+			if err = callErr(chain, []reflect.Value{reflect.ValueOf(self)}); err != nil {
+				return
+			}
 		}
 	} else if oldValue != nil {
 		if chain := oldValue.Addr().MethodByName("Deleted"); chain.IsValid() {
-			chain.Call([]reflect.Value{reflect.ValueOf(self)})
+			if err = callErr(chain, []reflect.Value{reflect.ValueOf(self)}); err != nil {
+				return
+			}
 		}
 	}
 	self.subscriptionsMutex.RLock()
@@ -210,4 +229,5 @@ func (self *DB) emit(typ reflect.Type, oldValue, newValue *reflect.Value) {
 	for _, subscription := range self.subscriptions[typ.Name()] {
 		go subscription.handle(typ, oldValue, newValue)
 	}
+	return
 }
