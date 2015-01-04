@@ -2,8 +2,9 @@ package kc
 
 import (
 	"bytes"
-	"github.com/zond/setop"
 	"strings"
+
+	"github.com/zond/setop"
 )
 
 /*
@@ -14,14 +15,14 @@ type KV struct {
 	Value []byte
 }
 
-func (self *DB) skipper(b []byte) setop.Skipper {
+func (self *DB) skipper(b []byte) (result setop.Skipper, err error) {
 	keys := SplitKeys(b)
-	result := &kcSkipper{
+	result = &kcSkipper{
 		cursor: self.KCDB.Cursor(),
 		length: len(keys),
 		key:    b,
 	}
-	return result
+	return
 }
 
 /*
@@ -39,19 +40,19 @@ func (self *DB) SetOp(expr *setop.SetExpression) (result []KV) {
 	return
 }
 
-func (self *DB) skipperString(b []byte) setop.Skipper {
+func (self *DB) skipperString(b []byte) (result setop.Skipper, err error) {
 	keyParts := strings.Split(string(b), "/")
 	keys := make([][]byte, len(keyParts))
 	for index, key := range keyParts {
 		keys[index] = []byte(key)
 	}
 	key := JoinKeys(keys)
-	result := &kcSkipper{
+	result = &kcSkipper{
 		cursor: self.KCDB.Cursor(),
 		length: len(keys),
 		key:    key,
 	}
-	return result
+	return
 }
 
 /*
